@@ -226,44 +226,6 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
 
 
 def ripple_solve(prob_field: np.array, verbose=False):
-    
-    solved = False
-    prev_sum = 0
-    while not solved:
-        resolution_map = prob_field.sum(axis=2)
-        print(resolution_map)
-        new_sum = resolution_map.sum()
-        
-        resolved_indices = np.argwhere(resolution_map == 1)
-        broken_indices = np.argwhere(resolution_map == 0)
-        unresolved_indices = np.argwhere(resolution_map > 1)
-        
-        if len(broken_indices) > 0:
-            return None
-        if len(unresolved_indices) == 0:
-            break
-        
-        if new_sum != prev_sum:
-            for x, y in resolved_indices:
-                i = np.argmax(prob_field[x][y])
-                prob_field = collapse_probability_field(prob_field, x, y, i)
-        else:
-
-            for x, y in unresolved_indices:
-                
-                for i, cell in enumerate(prob_field[x][y]):
-                    # print(x, y, i)
-                    if cell:
-                        r = collapse_probability_field(prob_field, x, y, i)
-                        r = ripple_solve(r, verbose)
-                        if r is not None:
-                            return r
-        prev_sum = new_sum
-        
-    return prob_field
-
-
-def ripple_solve_blank(prob_field: np.array, verbose=False):
     resolved = np.zeros((9, 9))
     prev_sum = 0
     while True:
@@ -287,7 +249,7 @@ def ripple_solve_blank(prob_field: np.array, verbose=False):
             unresolved_indices = np.argwhere(resolution_map > 1)
             x, y = unresolved_indices[np.argmin(resolution_map[unresolved_indices])]            
             for i in np.where(prob_field[x][y])[0]:
-                r = ripple_solve_blank(collapse_probability_field(prob_field, x, y, i), verbose)
+                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), verbose)
                 if r is not None:
                     return r
             return None
@@ -316,7 +278,7 @@ def evaluate(puzzles, solver, iterations=50):
         print(f'Average time: {t / iterations} seconds.')
         print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
     
-evaluate(puzzles, ripple_solve_blank)
+evaluate(puzzles, ripple_solve)
 # prob_field = generate_probability_field(puzzles['evil2'])
 
 # print(prob_field_to_puzzle(ripple_solve_blank(prob_field, verbose=True)))
