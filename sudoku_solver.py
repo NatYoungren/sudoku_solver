@@ -6,6 +6,7 @@ import numpy as np
 from copy import deepcopy
 import json
 import time
+import timeit
 
 puzzle_file = 'sudoku_puzzle.json'
 
@@ -263,49 +264,34 @@ def ripple_solve(prob_field: np.array, verbose=False):
 
 
 def ripple_solve_blank(prob_field: np.array, verbose=False):
-    
-    solved = False
+    resolved = np.zeros((9, 9))
     prev_sum = 0
-    while not solved:
+    while True:
         resolution_map = prob_field.sum(axis=2)
-        new_sum = resolution_map.sum()
         
-        # if resolution_map.sum() == 81:
-        #     return prob_field
-        
-        
-        
-        resolved_indices = np.argwhere(resolution_map == 1)
-        broken_indices = np.argwhere(resolution_map == 0)
-        unresolved_indices = np.argwhere(resolution_map > 1)
-        
-        if len(broken_indices) > 0:
-            # print('broken')
+        if not resolution_map.all():
             return None
-        if len(unresolved_indices) == 0:
-            # print('solved')
+        
+        new_sum = resolution_map.sum()
+        if new_sum == 81:
             break
         
-        
         if new_sum != prev_sum:
+            resolved_indices = np.argwhere(resolution_map == 1)
             for x, y in resolved_indices:
-                i = np.argmax(prob_field[x][y])
-                prob_field = collapse_probability_field(prob_field, x, y, i)
+                if resolved[x][y]:
+                    continue
+                resolved[x][y] = 1
+                prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
         else:
-            # x, y = np.random.choice(unresolved_indices)
-            print(resolution_map)
-            print(unresolved_indices[np.argsort(resolution_map[unresolved_indices])].shape)
-            for p in unresolved_indices[np.argsort(resolution_map[unresolved_indices])]:
-                print(p)
-            return
-            for x, y in unresolved_indices:
-                for i, cell in enumerate(prob_field[x][y]):
-                    if cell:
-                        r = collapse_probability_field(prob_field, x, y, i)
-                        r = ripple_solve_blank(r, verbose)
-                        if r is not None:
-                            return r
-                return None
+            unresolved_indices = np.argwhere(resolution_map > 1)
+            x, y = unresolved_indices[np.argmin(resolution_map[unresolved_indices])]            
+            for i in np.where(prob_field[x][y])[0]:
+                r = ripple_solve_blank(collapse_probability_field(prob_field, x, y, i), verbose)
+                if r is not None:
+                    return r
+            return None
+        
         prev_sum = new_sum
         
     return prob_field
@@ -314,37 +300,23 @@ def ripple_solve_blank(prob_field: np.array, verbose=False):
 # Evaluation
 #
 
-def evaluate(puzzles, solver):
+def evaluate(puzzles, solver, iterations=50):
     for name, puzzle in puzzles.items():
         print('\n Solving', name, '\n')
-        puzzle = np.array(puzzle)
+        puzzle = generate_probability_field(puzzle)
         
+        t = timeit.timeit(lambda: solver(puzzle), number=iterations)
         start_time = time.time()
         solution = solver(puzzle)
         end_time = time.time()
-        unsolved_nodes = np.count_nonzero(solution == 0)
-        print(solution)
+        
+        solved_puzzle = prob_field_to_puzzle(solution)
+        unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
+        print(solved_puzzle)
+        print(f'Average time: {t / iterations} seconds.')
         print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
     
-print(simple_solve(np.array(puzzles['medium']), verbose=True))
-# evaluate(puzzles, simple_solve)
-solution = simple_solve(np.array(puzzles['easy']), verbose=False)
-# print(simple_solve(np.array(puzzles['easy']), verbose=False))
-prob_field = generate_probability_field(puzzles['medium'])
-# solved_prob_field = generate_probability_field(solution)
-# # print(solved_prob_field)
-# collapse_map = make_collapse_map(prob_field)
-# # print(solved_prob_field.sum())
-# solved_collapse_map = make_collapse_map(solved_prob_field)
-# print(solved_collapse_map.sum())
+evaluate(puzzles, ripple_solve_blank)
+# prob_field = generate_probability_field(puzzles['evil2'])
 
-# print(collapse_map)
-# print(prob_field_to_puzzle(solved_prob_field))
-# # print(prob_field_to_puzzle(prob_field))
-# print(prob_field)
-# prob_field = collapse_probability_field(prob_field, 0, 4, 8)
-# print('---')
-# print(prob_field)
-# print(prob_field_to_puzzle(prob_field))
-# print(prob_field)
-print(prob_field_to_puzzle(ripple_solve_blank(prob_field, verbose=True)))
+# print(prob_field_to_puzzle(ripple_solve_blank(prob_field, verbose=True)))
