@@ -127,8 +127,6 @@ def validate_collapse_map(prob_field: np.array):
 # Solvers
 #
 
-# TODO: Implement a solver which uses np.where to find the next cell to solve
-
 #
 # Confident Solve
 def simple_solve(puzzle: np.array, verbose=False):
@@ -151,16 +149,11 @@ def simple_solve(puzzle: np.array, verbose=False):
 
 #
 # Probability Field Solver
-def collapse_solve(prob_field: np.array, verbose=False):
-    # init_field = deepcopy(prob_field)
-    
+def collapse_solve(prob_field: np.array, verbose=False):    
     counter = 1
-    last_sum = 0
     while True:
-        last_sum = prob_field.sum()
         
         c_map = make_collapse_map(prob_field)
-        # print(c_map.sum())
         if c_map.sum() == 0:
             break
         min_position = np.argwhere(c_map == np.min(c_map[np.nonzero(c_map)]))
@@ -170,8 +163,6 @@ def collapse_solve(prob_field: np.array, verbose=False):
             prob_field = collapse_probability_field(prob_field, x, y, i)
 
             counter += 1
-
-            # print(last_sum, prob_field.sum())
             break
         
     return prob_field_to_puzzle(prob_field)
@@ -179,12 +170,6 @@ def collapse_solve(prob_field: np.array, verbose=False):
 #
 # Recursive Probability Field Solver
 def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=False):
-    # print(solution)
-    # print(prob_field_to_puzzle(prob_field))
-    # print(solution)
-    # print(prob_field_to_puzzle(prob_field))
-    # print(np.equal(prob_field_to_puzzle(prob_field), solution).sum())
-    input()
     loop_counter = 1
 
     
@@ -224,14 +209,16 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
     # else:
     #     return result
 
+
 #
 # Recursive Ripple Solver
-def ripple_solve(prob_field: np.array, verbose=False):
-    resolved = np.zeros((9, 9))
+def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
+    if resolved is None:
+        resolved = np.zeros((9, 9))
     prev_sum = 0
     while True:
         resolution_map = prob_field.sum(axis=2)
-        
+        # print(resolution_map, resolution_map.sum())
         if not resolution_map.all():
             return None
         
@@ -239,7 +226,9 @@ def ripple_solve(prob_field: np.array, verbose=False):
         if new_sum == 81:
             break
         
-        if new_sum != prev_sum:
+        # print(np.where(resolution_map == resolved))
+        
+        if prev_sum != new_sum:
             resolved_indices = np.argwhere(resolution_map == 1)
             for x, y in resolved_indices:
                 if resolved[x][y]:
@@ -247,10 +236,12 @@ def ripple_solve(prob_field: np.array, verbose=False):
                 resolved[x][y] = 1
                 prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
         else:
+            
             unresolved_indices = np.argwhere(resolution_map > 1)
-            x, y = unresolved_indices[np.argmin(resolution_map[unresolved_indices])]            
+            x, y = unresolved_indices[np.argmax(resolution_map[unresolved_indices])]            
             for i in np.where(prob_field[x][y])[0]:
-                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), verbose)
+                # print('recursive')
+                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), verbose=verbose)# resolved=resolved, verbose=verbose)
                 if r is not None:
                     return r
             return None
@@ -263,7 +254,7 @@ def ripple_solve(prob_field: np.array, verbose=False):
 # Evaluation
 #
 
-def evaluate(puzzles, solver, iterations=50):
+def evaluate(puzzles, solver, iterations=1):
     for name, puzzle in puzzles.items():
         print('\n Solving', name, '\n')
         puzzle = generate_probability_field(puzzle)
