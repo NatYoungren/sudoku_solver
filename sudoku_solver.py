@@ -236,9 +236,12 @@ def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
                 resolved[x][y] = 1
                 prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
         else:
+            # v = np.argmin(resolution_map[resolution_map > 1])
+            # x = v // 9
+            # y = v % 9
             
             unresolved_indices = np.argwhere(resolution_map > 1)
-            x, y = unresolved_indices[np.argmin(resolution_map[unresolved_indices])]            
+            x, y = unresolved_indices[np.argmin(resolution_map > 1)]            
             for i in np.where(prob_field[x][y])[0]:
                 # print('recursive')
                 r = ripple_solve(collapse_probability_field(prob_field, x, y, i), verbose=verbose)# resolved=resolved, verbose=verbose)
@@ -260,6 +263,7 @@ def evaluate(puzzles, solver, iterations=1):
         puzzle = generate_probability_field(puzzle)
         
         t = timeit.timeit(lambda: solver(puzzle), number=iterations)
+        
         start_time = time.time()
         solution = solver(puzzle)
         end_time = time.time()
