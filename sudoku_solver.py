@@ -224,7 +224,8 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
     # else:
     #     return result
 
-
+#
+# Recursive Ripple Solver
 def ripple_solve(prob_field: np.array, verbose=False):
     resolved = np.zeros((9, 9))
     prev_sum = 0
