@@ -238,7 +238,7 @@ def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
         else:
             
             unresolved_indices = np.argwhere(resolution_map > 1)
-            x, y = unresolved_indices[np.argmax(resolution_map[unresolved_indices])]            
+            x, y = unresolved_indices[np.argmin(resolution_map[unresolved_indices])]            
             for i in np.where(prob_field[x][y])[0]:
                 # print('recursive')
                 r = ripple_solve(collapse_probability_field(prob_field, x, y, i), verbose=verbose)# resolved=resolved, verbose=verbose)
