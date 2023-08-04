@@ -48,7 +48,7 @@ def generate_probability_field(puzzle: np.array):
 
     return prob_field
 
-def collapse_probability_field(prob_field: np.array, x: int, y: int, i: int):
+def collapse_probability_field(prob_field: np.array, x: int, y: int, i: int): # Make copy bool param
     pf = deepcopy(prob_field)
     pf = perpetuate_collapse(pf, x, y, i)
     pf[x,y,:] = 0
@@ -244,7 +244,7 @@ def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
             x, y = unresolved_indices[np.argmin(resolution_map > 1)]            
             for i in np.where(prob_field[x][y])[0]:
                 # print('recursive')
-                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), verbose=verbose)# resolved=resolved, verbose=verbose)
+                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), deepcopy(resolved), verbose=verbose)# resolved=resolved, verbose=verbose)
                 if r is not None:
                     return r
             return None
