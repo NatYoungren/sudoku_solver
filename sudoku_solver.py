@@ -281,6 +281,7 @@ def recursive_collapse_solve(prob_field: np.ndarray, solution, layer=1, verbose=
 
 #
 # Recursive Ripple Solver
+# TODO: Try to flatten this out and remove the while loop.
 @njit
 def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     """ Each recursion of ripple_solve will collapse every resolved cell until a choice must be made.
