@@ -40,23 +40,51 @@ VERBOSE_END = True
 # Setup Utilities
 #
 
-# @njit # 0.1608099
-def get_cell(puzzle, x, y): # TODO: Faster way to do this?
+def get_region(puzzle, x, y): # TODO: Faster way to do this
+    """ Returns the 3x3 region of the puzzle that contains the given cell.
+
+    Args:
+        puzzle (np.ndarray): Sudoku puzzle as a 9x9 numpy array.
+        x (int): X coordinate of the cell.
+        y (int): Y coordinate of the cell.
+
+    Returns:
+        np.ndarray: Flattened 3x3 region of the puzzle.
+    """
     x = x // 3
     y = y // 3
     rows = puzzle[x*3:x*3+3]
     cols = rows[:,y*3:y*3+3]
-    cell = cols.flatten()
-    return cell
+    region = cols.flatten()
+    return region
 
+def get_options(row, col, region): # TODO: Faster way to do this?
+    """ Returns all unresolved options (1-9) for a row/column/region combination.
 
-# @njit # 0.1649119
-def get_options(row, col, cell): # TODO: Faster way to do this?
-    taken = set(np.concatenate((row, col, cell)).flatten())
+    Args:
+        row (np.ndarray): The 9 numerical values in a row.
+        col (np.ndarray): The 9 numerical values in a column.
+        region (np.ndarray): The 9 numerical values in a region.
+                                Empty regions are represented as 0.
+
+    Returns:
+        list: List of 1-9 integers not present in any row/column/region.
+    """
+    taken = set(np.concatenate((row, col, region)).flatten())
     return [i for i in range(1, 10) if i not in taken]
 
-
 def generate_probability_field(puzzle: np.array):
+    """ Generates a probability field for a given puzzle.
+    
+
+    Args:
+        puzzle (np.array): A 9x9 numpy array representing a sudoku puzzle.
+                            Filled cells contain their 1-9 value, empty cells are represented as 0.
+
+    Returns:
+        np.ndarry: A 9x9x9 numpy array, the list at each cell represents the viable options for that cell (index = value-1).
+                    Remaining options are represented as 1, removed options are represented as 0.
+    """
     puzzle = np.array(puzzle)
     prob_field = np.zeros((9, 9, 9))
     for x, row in enumerate(puzzle):
@@ -66,10 +94,10 @@ def generate_probability_field(puzzle: np.array):
                 prob_field[x][y][puzzle[x][y]-1] = 1
                 continue
             
-            cell = get_cell(puzzle, x, y)
-            opts = get_options(row, col, cell)
+            region = get_region(puzzle, x, y)
+            opts = get_options(row, col, region)
             for i in opts:
-                prob_field[x][y][i-1] = 1 # / len(opts)
+                prob_field[x][y][i-1] = 1
 
     return prob_field
 
@@ -79,6 +107,18 @@ def generate_probability_field(puzzle: np.array):
 
 @njit # Integral to ripple_solve
 def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
+    """ Collapses an x, y cell to a single given value-index (i).
+        Perpetuates that change to the rest of the grid by removing the value-index (i) from all other cells in the row, column, and region.
+
+    Args:
+        prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
+        x (int): X coordinate of the cell to collapse.
+        y (int): Y coordinate of the cell to collapse.
+        i (int): Index of the value to collapse to. (0-8)
+
+    Returns:
+        np.ndarray: Altered copy of the probability field.
+    """
     pf = prob_field.copy()  # Avoid altering the original
     pf[x,:,i] = 0           # Set option i to 0 for all cells in the x column.
     pf[:,y,i] = 0           # Set option i to 0 for all cells in the y row.
@@ -92,20 +132,10 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     
     return pf
 
-# @njit
-def perpetuate_collapse(prob_field: np.array, x: int, y: int, i: int):
-    prob_field[x,:,i] = 0
-    prob_field[:,y,i] = 0
-    xx = x // 3
-    yy = y // 3
-    prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
+def evaluate_collapse_sum(prob_field: np.ndarray, x: int, y: int, i: int):
+    return evaluate_row_value(prob_field, x, y, i) + evaluate_col_value(prob_field, x, y, i) + evaluate_region_value(prob_field, x, y, i)
 
-    return prob_field
-
-def evaluate_collapse_sum(prob_field: np.array, x: int, y: int, i: int):
-    return evaluate_row_value(prob_field, x, y, i) + evaluate_col_value(prob_field, x, y, i) + evaluate_cell_value(prob_field, x, y, i)
-
-def make_collapse_map(prob_field: np.array):
+def make_collapse_map(prob_field: np.ndarray):
     collapse_map = np.zeros((9, 9, 9))
     # vs = prob_field.sum(axis=2)
     # print(vs)
@@ -124,21 +154,21 @@ def make_collapse_map(prob_field: np.array):
     return collapse_map
 
 
-def get_collapse_value(prob_field: np.array, x: int, y: int, i: int):
-    return min(evaluate_row_value(prob_field, x, y, i), evaluate_col_value(prob_field, x, y, i), evaluate_cell_value(prob_field, x, y, i))
+def get_collapse_value(prob_field: np.ndarray, x: int, y: int, i: int):
+    return min(evaluate_row_value(prob_field, x, y, i), evaluate_col_value(prob_field, x, y, i), evaluate_region_value(prob_field, x, y, i))
 
-def evaluate_row_value(prob_field: np.array, x: int, y: int, i: int):
+def evaluate_row_value(prob_field: np.ndarray, x: int, y: int, i: int):
     return prob_field[x,:,i].sum() - prob_field[x,y,i]
 
-def evaluate_col_value(prob_field: np.array, x: int, y: int, i: int):
+def evaluate_col_value(prob_field: np.ndarray, x: int, y: int, i: int):
     return prob_field[:,y,i].sum() - prob_field[x,y,i]
 
-def evaluate_cell_value(prob_field: np.array, x: int, y: int, i: int):
+def evaluate_region_value(prob_field: np.ndarray, x: int, y: int, i: int):
     xx = x // 3
     yy = y // 3
     return prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum() - prob_field[x,y,i]
 
-def prob_field_to_puzzle(prob_field: np.array):
+def prob_field_to_puzzle(prob_field: np.ndarray):
     out_puzzle = np.zeros((9, 9))
     for x, row in enumerate(prob_field):
         for y, col in enumerate(prob_field.T):
@@ -150,14 +180,6 @@ def prob_field_to_puzzle(prob_field: np.array):
             # elif prob_field[x][y].sum() == 0:
                 # print('OVERRESOLVED', x, y, prob_field[x][y])
     return out_puzzle
-
-def validate_collapse_map(prob_field: np.array):
-    row_sums = prob_field.sum(axis=1)
-    print(row_sums)
-    col_sums = prob_field.sum(axis=0)
-    print(col_sums)
-    cell_sums = prob_field.sum(axis=2)
-
 
 
 # # # # # # #
@@ -173,8 +195,8 @@ def simple_solve(puzzle: np.array, verbose=False):
             if puzzle[x][y] != 0:
                 continue
             
-            cell = get_cell(puzzle, x, y)
-            opts = get_options(row, col, cell)
+            region = get_region(puzzle, x, y)
+            opts = get_options(row, col, region)
             
             if len(opts) == 1:
                 if verbose: print(f'({x}, {y}) = {opts[0]}')
