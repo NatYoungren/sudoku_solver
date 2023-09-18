@@ -73,12 +73,12 @@ def get_options(row, col, region): # TODO: Faster way to do this?
     taken = set(np.concatenate((row, col, region)).flatten())
     return [i for i in range(1, 10) if i not in taken]
 
-def generate_probability_field(puzzle: np.array):
+def generate_probability_field(puzzle: np.ndarray):
     """ Generates a probability field for a given puzzle.
     
 
     Args:
-        puzzle (np.array): A 9x9 numpy array representing a sudoku puzzle.
+        puzzle (np.ndarray): A 9x9 numpy array representing a sudoku puzzle.
                             Filled cells contain their 1-9 value, empty cells are represented as 0.
 
     Returns:
@@ -132,13 +132,13 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     
     return pf
 
+
+
 def evaluate_collapse_sum(prob_field: np.ndarray, x: int, y: int, i: int):
     return evaluate_row_value(prob_field, x, y, i) + evaluate_col_value(prob_field, x, y, i) + evaluate_region_value(prob_field, x, y, i)
 
 def make_collapse_map(prob_field: np.ndarray):
     collapse_map = np.zeros((9, 9, 9))
-    # vs = prob_field.sum(axis=2)
-    # print(vs)
     for x in range(9):
         for y in range(9):
             
@@ -188,7 +188,7 @@ def prob_field_to_puzzle(prob_field: np.ndarray):
 
 #
 # Confident Solve
-def simple_solve(puzzle: np.array, verbose=False):
+def simple_solve(puzzle: np.ndarray, verbose=False):
     for x, row in enumerate(puzzle):
         for y, col in enumerate(puzzle.T):
             
@@ -208,7 +208,7 @@ def simple_solve(puzzle: np.array, verbose=False):
 
 #
 # Probability Field Solver
-def collapse_solve(prob_field: np.array, verbose=False):    
+def collapse_solve(prob_field: np.ndarray, verbose=False):    
     counter = 1
     while True:
         
@@ -228,7 +228,7 @@ def collapse_solve(prob_field: np.array, verbose=False):
 
 #
 # Recursive Probability Field Solver
-def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=False):
+def recursive_collapse_solve(prob_field: np.ndarray, solution, layer=1, verbose=False):
     loop_counter = 1
 
     
@@ -250,10 +250,6 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
     n_z_v = c_map[n_z]
     ordered_indices = np.argsort(n_z_v)
     
-    # reverse_indices = ordered_indices[::-1]
-    # for x, y, i in zip(n_z[0][reverse_indices], n_z[1][reverse_indices], n_z[2][reverse_indices]):
-    #     print(f'\t<{layer}>\tCollapse: {loop_counter} ({x}, {y}) = {i+1}, conf({c_map[x][y][i]})')
-        
     for x, y, i in zip(n_z[0][ordered_indices], n_z[1][ordered_indices], n_z[2][ordered_indices]):
         if verbose: print(f'<{layer}>\tCollapse: {loop_counter} ({x}, {y}) = {i+1}, conf({c_map[x][y][i]})')
         
@@ -272,46 +268,61 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
 #
 # Recursive Ripple Solver
 @njit
-def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
-    if resolved is None:
-        resolved = np.zeros((9, 9))
-    prev_sum = 0
-    while True:
-        resolution_map = prob_field.sum(axis=2)
-        # print(resolution_map, resolution_map.sum())
-        if not resolution_map.all():
-            return None
+def ripple_solve(prob_field: np.ndarray, resolved_cells:np.ndarray=None):
+    """ Each recursion of ripple_solve will collapse every resolved cell until a choice must be made.
+        These collapses are propagated to the rest of the grid, possibly resolving or breaking other cells.
+        At that point, a new ripple_solve will recursively each explore option of the cell with the lowest number of options.
         
-        new_sum = resolution_map.sum()
-        if new_sum == 81:
+        A 9x9 grid (resolved_cells) tracking which cells have bee collapsed is handed down to each recursive call, 
+            this is to avoid pointlessly recollapsing every solved cell in the grid each time.
+        
+        Most effective solver so far.
+
+    Args:
+        prob_field (np.ndarray): A 9x9x9 numpy array representing a sudoku puzzle probability field.
+        resolved (np.ndarray, optional): A 9x9 array, tracking whether each cell position has been collapsed. Defaults to None.
+                                            If None, a blank array will be created.
+
+    Returns:
+        np.ndarray, optional: A 9x9x9 numpy array representing a solved sudoku puzzle probability field.
+                                If no solution can be found, returns None.
+    """
+    if resolved_cells is None:
+        resolved_cells = np.zeros((9, 9))
+        
+    prev_sum = 0 # Used to track whether the puzzle has been altered by the last iteration.
+    while True:
+        resolution_map = prob_field.sum(axis=2) # Sum the probability field along the value axis.
+        
+        if not resolution_map.all(): # If any cell has no options, the puzzle is unsolvable.
             break
         
-        # print(np.where(resolution_map == resolved))
+        new_sum = resolution_map.sum() # Sum the resolution map to see if the puzzle has been altered.
         
+        if new_sum == 81: # If the puzzle is solved, return the probability field.
+            return prob_field
+                
         if prev_sum != new_sum:
             resolved_indices = np.argwhere(resolution_map == 1)
             for x, y in resolved_indices:
-                if resolved[x][y]:
+                if resolved_cells[x][y]: # TODO: Rather than skipping these, we should avoid putting them in resolved indices.
                     continue
-                resolved[x][y] = 1
+                resolved_cells[x][y] = 1
                 prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
+                
         else:
-            # v = np.argmin(resolution_map[resolution_map > 1])
-            # x = v // 9
-            # y = v % 9
-            
             unresolved_indices = np.argwhere(resolution_map > 1)
-            x, y = unresolved_indices[np.argmin(resolution_map > 1)]            
+            x, y = unresolved_indices[np.argmin(resolution_map > 1)]
             for i in np.where(prob_field[x][y])[0]:
-                # print('recursive')
-                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), resolved.copy(), verbose=verbose)# resolved=resolved, verbose=verbose)
+                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), resolved_cells.copy())
                 if r is not None:
                     return r
-            return None
+            break
         
         prev_sum = new_sum
-        
-    return prob_field
+    
+    return None
+    
 
 # # # # # # #
 # Evaluation
