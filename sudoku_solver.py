@@ -3,19 +3,41 @@
 #
 
 import numpy as np
-# from numba import njit
+from numba import njit
 import json
 import time
 import timeit
 
-puzzle_file = 'sudoku_puzzle.json'
+PUZZLE_FILE = 'sudoku_puzzle.json'
+ITERATIONS = 100
+PREP_TIMEIT = True
 
-with open(puzzle_file) as f:
-    puzzles = json.load(f)
+VERBOSE_LOOP = True
+VERBOSE_END = True
 
+#       Numba speed comparison
+# 1000 iterations of ripple_solve:
+
+#       Non-njit:
+#  sudokupy    : 0.8660402
+#  easy        : 0.0012183
+#  medium      : 0.0021823
+#  evil        : 0.0045218
+#  evil2       : 0.0199788
+#  blank       : 0.0221743
+# Average time : 0.1526860
+
+#       Njit:
+#  sudokupy    : 0.0480540
+#  easy        : 0.0000409
+#  medium      : 0.0000895
+#  evil        : 0.0002152
+#  evil2       : 0.0010506
+#  blank       : 0.0015018
+# Average time : 0.0084920
 
 # # # # # # #
-# Utilities
+# Setup Utilities
 #
 
 # @njit # 0.1608099
@@ -51,12 +73,22 @@ def generate_probability_field(puzzle: np.array):
 
     return prob_field
 
-# @njit
-def collapse_probability_field(prob_field: np.array, x: int, y: int, i: int): # Make copy bool param
-    pf = prob_field.copy()
-    pf = perpetuate_collapse(pf, x, y, i)
-    pf[x,y,:] = 0
-    pf[x][y][i] = 1
+# # # # # # #
+# Solver Utilities
+#
+
+@njit # Integral to ripple_solve
+def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
+    pf = prob_field.copy()  # Avoid altering the original
+    pf[x,:,i] = 0           # Set option i to 0 for all cells in the x column.
+    pf[:,y,i] = 0           # Set option i to 0 for all cells in the y row.
+    
+    xx = x // 3             # Set option i to 0 for all cells in the region.
+    yy = y // 3             # (xx, yy) is the top-left corner of the region containing x, y.
+    pf[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
+    
+    pf[x,y,:] = 0           # Set all options for the x, y cell to 0.
+    pf[x][y][i] = 1         # Set the option i for the x, y cell to 1.
     
     return pf
 
@@ -217,6 +249,7 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
 
 #
 # Recursive Ripple Solver
+@njit
 def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
     if resolved is None:
         resolved = np.zeros((9, 9))
@@ -262,22 +295,20 @@ def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
 # Evaluation
 #
 
-def evaluate(puzzles, solver, iterations=10, verbose_loop=False):
+def evaluate(puzzles, solver, iterations=10, verbose_loop:bool=True, verbose_end:bool=True):
     
     times = {}
-    overall_st = time.time()
     for name, puzzle in puzzles.items():
         if verbose_loop: print('\n Solving', name, '\n')
+        
         puzzle = generate_probability_field(puzzle)
         
-        # Solve once to frontload numba compilation
+        # Solve once manually for solution
         start_time = time.time()
         solution = solver(puzzle)
         end_time = time.time()
         
-        
-        
-        #  
+        # Solve again repeatedly for average time
         t = timeit.timeit(lambda: solver(puzzle), number=iterations)
         
         times[name] = t / iterations
@@ -287,16 +318,23 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop=False):
             print(solved_puzzle)
             print(f'Average time: {t / iterations} seconds.')
             print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
-            
-        
     
-    print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
-    for name, t in times.items():
-        print(f' {name:<12}: {t:.7f}')
-    print(f'Average time : {sum(times.values()) / len(times):.7f}')
-    print(f'Overall time : {time.time() - overall_st:.7f}')
+    if verbose_end:
+        print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
+        for name, t in times.items():
+            print(f' {name:<12}: {t:.7f}')
+        print(f'Average time : {sum(times.values()) / len(times):.7f}')
     
-evaluate(puzzles, ripple_solve)
-# prob_field = generate_probability_field(puzzles['evil2'])
+    
+if __name__ == '__main__':
+    
+    with open(PUZZLE_FILE) as f:
+        puzzles = json.load(f)
 
-# print(prob_field_to_puzzle(ripple_solve_blank(prob_field, verbose=True)))
+    if PREP_TIMEIT:
+        # Presolve blank puzzle:
+        print(' >> Prepping timeit')
+        timeit.timeit(lambda: ripple_solve(np.zeros((9, 9, 9))), number=1)
+    
+
+    evaluate(puzzles, ripple_solve, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP)
