@@ -282,27 +282,27 @@ def recursive_collapse_solve(prob_field: np.ndarray, solution, layer=1, verbose=
 #
 # Recursive Ripple Solver
 @njit
-def ripple_solve(prob_field: np.ndarray, resolved_cells: np.ndarray = None):
+def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     """ Each recursion of ripple_solve will collapse every resolved cell until a choice must be made.
         These collapses are propagated to the rest of the grid, possibly resolving or breaking other cells.
         At that point, a new ripple_solve will recursively each explore option of the cell with the lowest number of options.
 
-        A 9x9 grid (resolved_cells) tracking which cells have bee collapsed is handed down to each recursive call, 
+        A 9x9 grid (collapsed_cells) tracking which cells have bee collapsed is handed down to each recursive call, 
             this is to avoid pointlessly recollapsing every solved cell in the grid each time.
 
         Most effective solver so far.
 
     Args:
         prob_field (np.ndarray): A 9x9x9 numpy array representing a sudoku puzzle probability field.
-        resolved (np.ndarray, optional): A 9x9 array, tracking whether each cell position has been collapsed. Defaults to None.
-                                            If None, a blank array will be created.
+        collapsed_cells (np.ndarray, optional): A 9x9 array, tracking whether each cell position has been collapsed. Defaults to None.
+                                                    If None, a blank array will be created.
 
     Returns:
         np.ndarray, optional: A 9x9x9 numpy array representing a solved sudoku puzzle probability field.
                                 If no solution can be found, returns None.
     """
-    if resolved_cells is None:
-        resolved_cells = np.zeros((9, 9))
+    if collapsed_cells is None:
+        collapsed_cells = np.zeros((9, 9))
 
     # Used to track whether the probability field was altered by the last iteration.
     prev_sum = 0
@@ -329,14 +329,14 @@ def ripple_solve(prob_field: np.ndarray, resolved_cells: np.ndarray = None):
 
                 # Skip cells that have been previously collapsed.
                 # FIXME: Rather than skipping these, we should avoid including them in resolved indices.
-                if resolved_cells[x][y]:
+                if collapsed_cells[x][y]:
                     continue
 
                 # Collapse the cell to the only option and propagate that change.
                 prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
 
                 # Mark the cell as collapsed.
-                resolved_cells[x][y] = 1
+                collapsed_cells[x][y] = 1
 
         # If the puzzle was not altered, then there are no new cells which can be collapsed.
         # Instead, select the cell with the lowest number of options and recursively solve for each option.
@@ -344,11 +344,11 @@ def ripple_solve(prob_field: np.ndarray, resolved_cells: np.ndarray = None):
             # TODO: Find a simpler way to do this.
             unresolved_indices = np.argwhere(resolution_map > 1)
             x, y = unresolved_indices[np.argmin(resolution_map > 1)]
-            resolved_cells[x][y] = 1
+            collapsed_cells[x][y] = 1
             
-            # Recurse, passing a collapsed probability field and a copy of the resolved cells.
+            # Recurse, passing a collapsed probability field and a copy of the collapsed cells.
             for i in np.where(prob_field[x][y])[0]:
-                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), resolved_cells.copy())
+                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
                 
                 # If a solution is found, return it.
                 if r is not None:
@@ -359,6 +359,7 @@ def ripple_solve(prob_field: np.ndarray, resolved_cells: np.ndarray = None):
         prev_sum = new_sum
 
     return None
+
 
 
 # # # # # # #
