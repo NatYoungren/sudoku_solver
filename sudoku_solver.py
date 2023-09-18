@@ -3,7 +3,7 @@
 #
 
 import numpy as np
-from copy import deepcopy
+# from numba import njit
 import json
 import time
 import timeit
@@ -18,6 +18,7 @@ with open(puzzle_file) as f:
 # Utilities
 #
 
+# @njit # 0.1608099
 def get_cell(puzzle, x, y): # TODO: Faster way to do this?
     x = x // 3
     y = y // 3
@@ -26,6 +27,8 @@ def get_cell(puzzle, x, y): # TODO: Faster way to do this?
     cell = cols.flatten()
     return cell
 
+
+# @njit # 0.1649119
 def get_options(row, col, cell): # TODO: Faster way to do this?
     taken = set(np.concatenate((row, col, cell)).flatten())
     return [i for i in range(1, 10) if i not in taken]
@@ -48,14 +51,16 @@ def generate_probability_field(puzzle: np.array):
 
     return prob_field
 
+# @njit
 def collapse_probability_field(prob_field: np.array, x: int, y: int, i: int): # Make copy bool param
-    pf = deepcopy(prob_field)
+    pf = prob_field.copy()
     pf = perpetuate_collapse(pf, x, y, i)
     pf[x,y,:] = 0
     pf[x][y][i] = 1
     
     return pf
 
+# @njit
 def perpetuate_collapse(prob_field: np.array, x: int, y: int, i: int):
     prob_field[x,:,i] = 0
     prob_field[:,y,i] = 0
@@ -185,7 +190,7 @@ def recursive_collapse_solve(prob_field: np.array, solution, layer=1, verbose=Fa
             return prob_field
         return None
     
-    result = deepcopy(prob_field)
+    result = prob_field.copy()
 
     n_z = np.nonzero(c_map)
     n_z_v = c_map[n_z]
@@ -244,7 +249,7 @@ def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
             x, y = unresolved_indices[np.argmin(resolution_map > 1)]            
             for i in np.where(prob_field[x][y])[0]:
                 # print('recursive')
-                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), deepcopy(resolved), verbose=verbose)# resolved=resolved, verbose=verbose)
+                r = ripple_solve(collapse_probability_field(prob_field, x, y, i), resolved.copy(), verbose=verbose)# resolved=resolved, verbose=verbose)
                 if r is not None:
                     return r
             return None
@@ -257,22 +262,39 @@ def ripple_solve(prob_field: np.array, resolved=None, verbose=False):
 # Evaluation
 #
 
-def evaluate(puzzles, solver, iterations=1):
+def evaluate(puzzles, solver, iterations=10, verbose_loop=False):
+    
+    times = {}
+    overall_st = time.time()
     for name, puzzle in puzzles.items():
-        print('\n Solving', name, '\n')
+        if verbose_loop: print('\n Solving', name, '\n')
         puzzle = generate_probability_field(puzzle)
         
-        t = timeit.timeit(lambda: solver(puzzle), number=iterations)
-        
+        # Solve once to frontload numba compilation
         start_time = time.time()
         solution = solver(puzzle)
         end_time = time.time()
         
-        solved_puzzle = prob_field_to_puzzle(solution)
-        unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
-        print(solved_puzzle)
-        print(f'Average time: {t / iterations} seconds.')
-        print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
+        
+        
+        #  
+        t = timeit.timeit(lambda: solver(puzzle), number=iterations)
+        
+        times[name] = t / iterations
+        if verbose_loop:
+            solved_puzzle = prob_field_to_puzzle(solution)
+            unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
+            print(solved_puzzle)
+            print(f'Average time: {t / iterations} seconds.')
+            print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
+            
+        
+    
+    print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
+    for name, t in times.items():
+        print(f' {name:<12}: {t:.7f}')
+    print(f'Average time : {sum(times.values()) / len(times):.7f}')
+    print(f'Overall time : {time.time() - overall_st:.7f}')
     
 evaluate(puzzles, ripple_solve)
 # prob_field = generate_probability_field(puzzles['evil2'])
