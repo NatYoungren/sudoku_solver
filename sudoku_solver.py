@@ -248,9 +248,10 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     """
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9))
-        
-    recursion_count = 1     # Tracks the number of recursions.
-    failed_recursions = 0   # Tracks the number of recursions that resulted in an invalid board state.
+    
+    # DEBUG: Track total/failed recursion counts.
+    recursions = 1
+    failed_recursions = 0
     
     # Used to track whether the probability field was altered by the last iteration.
     prev_sum = 0
@@ -267,7 +268,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
         # If there is one choice per cell, return the solved probability field.
         if new_sum == 81:
-            return prob_field, recursion_count, failed_recursions
+            return prob_field, recursions, failed_recursions
 
         # If the puzzle has been altered, look for new cells that can be collapsed.
         if prev_sum != new_sum:
@@ -300,14 +301,15 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
             indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
             
             for i in indexes:
+                # Result, recursion_count, failed_recursions
                 r, _rs, _frs = ripple_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
                 
-                recursion_count += _rs      # Update the recursion counts.
+                recursions += _rs           # Update the recursion counts.
                 failed_recursions += _frs   # DEBUG: Used for heuristic testing.
 
                 # If a solution is found, return it.
                 if r is not None:
-                    return r,  recursion_count, failed_recursions
+                    return r,  recursions, failed_recursions
                 
                 # If no solution is found, increment the failed recursion count.
                 failed_recursions += 1
@@ -317,7 +319,8 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
         prev_sum = new_sum
 
-    return None, recursion_count, failed_recursions
+    return None, recursions, failed_recursions
+
 
 # # # # # # #
 # Evaluation
@@ -341,17 +344,17 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_
         solution = solver(puzzle)
         end_time = time.time()
         
-        # Assume the additional values are the recursion counts.
+        # Assume any additional values are recursion counts.
         if len(solution) == 3:
             recursions[name] = solution[1]
             failed_recursions[name] = solution[2]
             solution = solution[0]
 
-        # Solve again repeatedly for average time
+        # Solve repeatedly for average time
         t = timeit.timeit(lambda: solver(puzzle), number=iterations)
-
         times[name] = t / iterations
         
+        # Print puzzle results
         if verbose_loop:
             solved_puzzle = prob_field_to_puzzle(solution)
             unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
@@ -359,6 +362,7 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_
             print(f'Average time: {t / iterations} seconds.')
             print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
 
+    # Print overall results
     if verbose_end:
         print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
         for name, t in times.items():
