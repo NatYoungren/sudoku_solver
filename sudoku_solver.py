@@ -8,6 +8,8 @@ import json
 import time
 import timeit
 
+np.set_printoptions(linewidth=np.inf)
+
 PUZZLE_FILE = 'sudoku_puzzle.json'
 ITERATIONS = 100
 PREP_TIMEIT = True
