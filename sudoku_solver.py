@@ -304,16 +304,17 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9))
     
-    # DEBUG: Track total/failed recursion counts.
-    recursions = 1
-    failed_recursions = 0
+    # DEBUG: Track metrics.
+    recursions = 1          # Total recursions (including first call)
+    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
+    collapse_count = 0      # Total number of cells collapsed.
     
     # Used to track whether the probability field was altered by the last iteration.
     prev_sum = 0
     while True:
         # Sum the probability field along the value axis.
         resolution_map = prob_field.sum(axis=2)
-
+        
         # If any cell has no options, the puzzle is unsolvable.
         if not resolution_map.all():
             break
@@ -323,22 +324,27 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
         # If there is one choice per cell, return the solved probability field.
         if new_sum == 81:
-            return prob_field, recursions, failed_recursions
+            return prob_field, recursions, failed_recursions, collapse_count
 
         # If the puzzle has been altered, look for new cells that can be collapsed.
-        if prev_sum != new_sum:
+        if prev_sum != new_sum: 
             # Iterate over all cells with only one option.
-            resolved_indices = np.argwhere(resolution_map == 1)
+            resolved_indices = np.argwhere(resolution_map == 1) # FIXME: By preselecting the cells, we may be missing invalid states.
             for x, y in resolved_indices:
-
+                
                 # Skip cells that have been previously collapsed.
                 # FIXME: Rather than skipping these, we should avoid including them in resolved indices.
                 if collapsed_cells[x][y]:
                     continue
-
+                # Abort if the cell has no options.
+                if not prob_field[x][y].sum():
+                    break
+                    
                 # Collapse the cell to the only option and propagate that change.
-                prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
-
+                i = np.argmax(prob_field[x][y])
+                    
+                prob_field = collapse_probability_field(prob_field, x, y, i)
+                collapse_count += 1
                 # Mark the cell as collapsed.
                 collapsed_cells[x][y] = 1
 
@@ -357,14 +363,15 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
             
             for i in indexes:
                 # Result, recursion_count, failed_recursions
-                r, _rs, _frs = ripple_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
+                r, _rs, _frs, _c = ripple_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
                 
-                recursions += _rs           # Update the recursion counts.
-                failed_recursions += _frs   # DEBUG: Used for heuristic testing.
+                recursions += _rs           # Update the tracked metrics.
+                failed_recursions += _frs   # NOTE: Used for heuristic testing.
+                collapse_count += _c + 1    # 
 
                 # If a solution is found, return it.
                 if r is not None:
-                    return r,  recursions, failed_recursions
+                    return r,  recursions, failed_recursions, collapse_count
                 
                 # If no solution is found, increment the failed recursion count.
                 failed_recursions += 1
@@ -374,9 +381,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
         prev_sum = new_sum
 
-    return None, recursions, failed_recursions
-
-
+    return None, recursions, failed_recursions, collapse_count
 # # # # # # #
 # Evaluation
 #
