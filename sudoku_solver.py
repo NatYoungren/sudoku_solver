@@ -101,6 +101,14 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     return pf
 
 
+@njit
+def mask_2darray(arr, mask_arr, maskval=10):
+    for x, _ in enumerate(arr):
+        for y, _ in enumerate(arr.T):
+            if mask_arr[x][y]:
+                arr[x][y] = maskval
+                    
+
 def get_region(puzzle, x, y):  # TODO: Faster way to do this?
     """ Returns the 3x3 region of the puzzle that contains the given cell.
 
