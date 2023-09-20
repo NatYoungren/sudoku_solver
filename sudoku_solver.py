@@ -93,10 +93,10 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     pf[x, :, i] = 0         # Set option i to 0 for all cells in the x column.
     pf[:, y, i] = 0         # Set option i to 0 for all cells in the y row.
     xx = x // 3             # Set option i to 0 for all cells in the region.
-    yy = y // 3             # (xx, yy) is the top-left corner of the region containing x, y.
+    yy = y // 3             # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
     pf[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
     pf[x, y, :] = 0         # Set all options for the x, y cell to 0.
-    pf[x][y][i] = 1         # Set the option i for the x, y cell to 1.
+    pf[x, y, i] = 1         # Set the option i for the x, y cell to 1.
 
     return pf
 
@@ -135,11 +135,13 @@ def get_options(row, col, region):  # TODO: Faster way to do this?
     taken = set(np.concatenate((row, col, region)).flatten())
     return [i for i in range(1, 10) if i not in taken]
 
+
 # # # # # # #
-# Unused Utilities
-# NOTE: These are from some experiments on determining the overall uncertainty in a puzzle.
-#       The idea was to weigh choices by the number of cells they would collapse.
-#       They are not used by any final solver, and are not finished. Included only for possible future reference.
+# Heuristic Utilities
+#
+# NOTE: These utilities are used to weight choices by the number of other cell options they remove from the puzzle upon collapse.
+#
+
 
 def make_collapse_map(prob_field: np.ndarray):
     collapse_map = np.zeros((9, 9, 9))
@@ -158,13 +160,37 @@ def make_collapse_map(prob_field: np.ndarray):
                     collapse_map[x][y][i] = evaluate_collapse_sum(prob_field, x, y, i)
     return collapse_map
 
+def collapse_sums(prob_field):
+    col_sums = prob_field.sum(axis=0)
+    row_sums = prob_field.sum(axis=1)
+    region_sums = np.zeros((3, 3, 9))
+    for x in range(3):
+        for y in range(3):
+            region_sums[x, y] = prob_field[x*3:x*3+3, y*3:y*3+3].sum(axis=(0, 1))
+
+# Low collapse value means the choice is less likely to lead to a broken board state.
 @njit
+def collapse_value(prob_field: np.ndarray, x: int, y: int, i: int):
+    xx = x // 3
+    yy = y // 3
+    return min(prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum(), prob_field[x, :, i].sum(), prob_field[:, y, i].sum())
+
+# Note that the value of the cell overall included once in the final sum:
+#   row + col + (region - row/reg_overlap - col/reg_overlap) = sum
+#   cell + cell + (cell - cell - cell) = cell
+@njit
+def collapse_sum(prob_field: np.ndarray, x: int, y: int, i: int):
+    xx = x // 3
+    yy = y // 3
+    row = prob_field[x, :, i].sum()
+    col = prob_field[:, y, i].sum()
+    region = prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum() - prob_field[xx*3:xx*3+3, y, i].sum() - prob_field[x, yy*3:yy*3+3, i].sum()
+    return row + col + region
+
+# Leaving these alone for future reference, note that they all subtract the cell value from the result.
+@njit 
 def evaluate_collapse_sum(prob_field: np.ndarray, x: int, y: int, i: int):
     return evaluate_row_value(prob_field, x, y, i) + evaluate_col_value(prob_field, x, y, i) + evaluate_region_value(prob_field, x, y, i)
-
-@njit
-def get_collapse_value(prob_field: np.ndarray, x: int, y: int, i: int):
-    return min(evaluate_row_value(prob_field, x, y, i), evaluate_col_value(prob_field, x, y, i), evaluate_region_value(prob_field, x, y, i))
 
 @njit
 def evaluate_row_value(prob_field: np.ndarray, x: int, y: int, i: int):
@@ -297,7 +323,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
             
             # Recurse, passing a collapsed probability field and a copy of the collapsed cells.
             indexes = np.where(prob_field[x][y])[0]
-            c_values = [get_collapse_value(prob_field, x, y, i) for i in indexes]
+            c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
             indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
             
             for i in indexes:
