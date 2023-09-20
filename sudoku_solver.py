@@ -152,20 +152,41 @@ def get_options(row, col, region):  # TODO: Faster way to do this?
 
 
 def make_collapse_map(prob_field: np.ndarray):
+    col_sums = prob_field.sum(axis=0)
+    print(col_sums.shape)
+    print(col_sums.shape)
+    
+    row_sums = prob_field.sum(axis=1)
+    region_sums = np.zeros((9, 9, 9))
+    
+            
     collapse_map = np.zeros((9, 9, 9))
-    for x in range(9):
-        for y in range(9):
-            
-            # Skip solved cells, abort if cell is unsolvable.
-            v = prob_field[x][y].sum()  
-            if v == 1:
-                continue
-            elif v == 0:
-                return None
-            
-            for i, cell in enumerate(prob_field[x][y]):
-                if cell:
-                    collapse_map[x][y][i] = evaluate_collapse_sum(prob_field, x, y, i)
+    
+    for x in range(3):
+        for y in range(3):
+            region_sums[x, y] = prob_field[x*3:x*3+3, y*3:y*3+3].sum(axis=(0, 1))
+            collapse_map[x*3:x*3+3, y*3:y*3+3] += region_sums[x, y]
+    
+    
+    for i in range(9):
+        collapse_map[i] += col_sums[i]
+        collapse_map[:, i] += row_sums[i]
+        
+    
+    
+    # for x in range(9):
+    #     for y in range(9):
+    #         # collapse_map[x, y] = np.minimum(col_sums[x], row_sums[y], region_sums[x//3, y//3])
+    #         for i in range(9):
+    #             print(collapse_map[x, y, i])
+                # collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[x//3, y//3, i])
+                # print(x, y, i,'____', collapse_map[x, y, i],'->', collapse_value(prob_field, x, y, i))
+                
+    print('col', col_sums)
+    print('row', row_sums)
+    print('reg', region_sums)
+    print('map', collapse_map)
+    
     return collapse_map
 
 def collapse_sums(prob_field):
