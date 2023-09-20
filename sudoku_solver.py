@@ -103,13 +103,30 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     return pf
 
 
-@njit
-def mask_2darray(arr, mask_arr, maskval=10):
+@njit # TODO: Look for a more efficient njit-compatible method
+def mask_2darray(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
+    arr = arr.copy()
     for x, _ in enumerate(arr):
         for y, _ in enumerate(arr.T):
             if mask_arr[x][y]:
                 arr[x][y] = maskval
-                    
+    return arr
+
+@njit # Same as above, but in-place.
+def mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
+    w, h = arr.shape[:2]
+    for x in range(w):
+        for y in range(h):
+            if mask_arr[x][y]:
+                arr[x][y] = maskval
+                
+@njit # Same as above, inverse mask.
+def inverse_mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
+    w, h = arr.shape[:2]
+    for x in range(w):
+        for y in range(h):
+            if not mask_arr[x][y]:
+                arr[x][y] = maskval
 
 def get_region(puzzle, x, y):  # TODO: Faster way to do this?
     """ Returns the 3x3 region of the puzzle that contains the given cell.
