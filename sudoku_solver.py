@@ -406,6 +406,7 @@ def heuristic_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     while not collapsed_cells.all():
         
         # Sum the probability field along the value axis.
+        # TODO: Replace resolution mapping with collapse map
         resolution_map = prob_field.sum(axis=2)
 
         # If any cell has no options, the puzzle is unsolvable.
@@ -422,19 +423,36 @@ def heuristic_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         
         # print(resolution_map)
         
-        i = np.argmin(resolution_map)
-        x, y = i // 9, i % 9
+        
         
         # print(x, y)
         collapsed_cells[x, y] = 1
         
-
-        if resolution_map[x, y] == 1:
+        #   Old one-cell-per-loop naive collapse.
+        # i = np.argmin(resolution_map)
+        # x, y = i // 9, i % 9
+        
+        # if resolution_map[x, y] == 1:
+        #     collapse_count += 1
+        #     prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
+        
+        
+        while np.min(resolution_map) == 1:
+            i = np.argmin(resolution_map)
+            x, y = i // 9, i % 9
             collapse_count += 1
+            collapsed_cells[x, y] = 1
             prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
             
-        
+            resolution_map = prob_field.sum(axis=2)
+            mask_2darray(resolution_map, collapsed_cells)
+            
         else:
+            i = np.argmin(resolution_map)
+            x, y = i // 9, i % 9
+            
+            collapsed_cells[x, y] = 1
+            
             indexes = np.where(prob_field[x][y])[0]
             c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
             indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
@@ -508,28 +526,12 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_
 
 
 if __name__ == '__main__':
-    TEST_FUNC = ripple_solve
+    TEST_FUNC = heuristic_solve
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
         puzzles.pop('ai_escargot', None)
-    puzzle = generate_probability_field(puzzles['sudokupy'])
-    c_map = make_collapse_map(puzzle)
-    # # print(c_map.sum(axis=2))
-    quit()
-    # solution, r, fr, c = ripple_solve(puzzle)
-    # print(c)
-    # print(collapse_value(solution, 0, 1, 7))
-    # print(get_collapse_value(solution, 0, 1, 7))
-    # print(collapse_sum(solution, 0, 1, 7))
-    # print(solution[0, :, 7])
-    # print(solution[:, 1, 7])
-    # print(solution[0:3, 0:3, 7])
-    
-    # print(prob_field_to_puzzle(solution))
-    # print(r, fr)
-    
-    # quit()
+        
     if PREP_TIMEIT:
         # Presolve impossible puzzle:
         print(' >> Prepping timeit')
