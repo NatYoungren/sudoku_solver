@@ -78,6 +78,56 @@ def prob_field_to_puzzle(prob_field: np.ndarray):
 #
 
 @njit
+def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray):
+    """ Collapses all cells with only one option until no more remain.
+        Returns the final state of the probability field.
+        Modifies collapsed_cells in place.
+    """
+    
+    collapse_count = 0
+    prev_count = collapse_count
+    while True:
+        # Sum the probability field along the value axis.
+        resolution_map = prob_field.sum(axis=2)
+        
+        # If any cell has no options, the puzzle is unsolvable.
+        if not resolution_map.all():
+            return None, collapse_count
+
+        # If there is one choice per cell, return the solved probability field.
+        if resolution_map.sum() == 81:
+            break
+
+        # If the puzzle has been altered, look for new cells that can be collapsed.
+        if prev_count != collapse_count: 
+            # Iterate over all cells with only one option.
+            resolved_indices = np.argwhere(resolution_map == 1)
+            for x, y in resolved_indices:
+                
+                # Skip cells that have been previously collapsed.
+                # FIXME: Rather than skipping these, we should avoid including them in resolved indices.
+                if collapsed_cells[x][y]:
+                    continue
+                
+                # Abort if the cell has no options.
+                if not prob_field[x][y].sum():
+                    return None, collapse_count
+                    
+                # Collapse the cell to the only option and propagate that change.
+                i = np.argmax(prob_field[x][y])
+                    
+                prob_field = collapse_probability_field(prob_field, x, y, i)
+                collapse_count += 1
+
+                # Mark the cell as collapsed.
+                collapsed_cells[x][y] = 1
+        else:
+            break
+    
+    return prob_field, collapse_count
+
+
+@njit
 def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     """ Collapses an x, y cell to a single given value-index (i).
         Perpetuates that change to the rest of the grid by removing the value-index (i) from all other cells in the row, column, and region.
