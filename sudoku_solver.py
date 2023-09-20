@@ -336,6 +336,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
                 # FIXME: Rather than skipping these, we should avoid including them in resolved indices.
                 if collapsed_cells[x][y]:
                     continue
+                
                 # Abort if the cell has no options.
                 if not prob_field[x][y].sum():
                     break
@@ -345,6 +346,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
                     
                 prob_field = collapse_probability_field(prob_field, x, y, i)
                 collapse_count += 1
+
                 # Mark the cell as collapsed.
                 collapsed_cells[x][y] = 1
 
@@ -362,6 +364,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
             indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
             
             for i in indexes:
+                
                 # Result, recursion_count, failed_recursions
                 r, _rs, _frs, _c = ripple_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
                 
@@ -382,6 +385,82 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         prev_sum = new_sum
 
     return None, recursions, failed_recursions, collapse_count
+
+
+
+#
+# Recursive Heuristic Solver
+# This solver is a work in progress, attempting to incorporate more heuristic information into the solver.
+# Trying to minimize breaking changes to the probability field.
+@njit
+def heuristic_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+    if collapsed_cells is None:
+        collapsed_cells = np.zeros((9, 9))
+    
+    # DEBUG: Track metrics.
+    recursions = 1          # Total recursions (including first call)
+    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
+    collapse_count = 0      # Total number of cells collapsed.
+    
+    # Used to track whether the probability field was altered by the last iteration.
+    while not collapsed_cells.all():
+        
+        # Sum the probability field along the value axis.
+        resolution_map = prob_field.sum(axis=2)
+
+        # If any cell has no options, the puzzle is unsolvable.
+        if not resolution_map.all():
+            prob_field = None
+            break
+        
+        if resolution_map.sum() == 81:
+            break
+        
+        mask_2darray(resolution_map, collapsed_cells)
+        
+        # c_map = make_collapse_map(prob_field)
+        
+        # print(resolution_map)
+        
+        i = np.argmin(resolution_map)
+        x, y = i // 9, i % 9
+        
+        # print(x, y)
+        collapsed_cells[x, y] = 1
+        
+
+        if resolution_map[x, y] == 1:
+            collapse_count += 1
+            prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
+            
+        
+        else:
+            indexes = np.where(prob_field[x][y])[0]
+            c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
+            indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
+            
+            for i in indexes:
+                
+                # Result, recursion_count, failed_recursions
+                r, _rs, _frs, _c = heuristic_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
+                
+                recursions += _rs           # Update the tracked metrics.
+                failed_recursions += _frs   # NOTE: Used for heuristic testing.
+                collapse_count += _c + 1    # 
+
+                # If a solution is found, return it.
+                if r is not None:
+                    return r,  recursions, failed_recursions, collapse_count
+                                
+                # If no solution is found, increment the failed recursion count.
+                failed_recursions += 1
+                
+            # If no option lead to a solution, the puzzle is unsolvable.
+            prob_field = None
+            break
+
+    return prob_field, recursions, failed_recursions, collapse_count
+
 # # # # # # #
 # Evaluation
 #
@@ -433,9 +512,29 @@ if __name__ == '__main__':
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
-
+        puzzles.pop('ai_escargot', None)
+    puzzle = generate_probability_field(puzzles['sudokupy'])
+    c_map = make_collapse_map(puzzle)
+    # # print(c_map.sum(axis=2))
+    quit()
+    # solution, r, fr, c = ripple_solve(puzzle)
+    # print(c)
+    # print(collapse_value(solution, 0, 1, 7))
+    # print(get_collapse_value(solution, 0, 1, 7))
+    # print(collapse_sum(solution, 0, 1, 7))
+    # print(solution[0, :, 7])
+    # print(solution[:, 1, 7])
+    # print(solution[0:3, 0:3, 7])
+    
+    # print(prob_field_to_puzzle(solution))
+    # print(r, fr)
+    
+    # quit()
     if PREP_TIMEIT:
         # Presolve impossible puzzle:
         print(' >> Prepping timeit')
+        
+       
         timeit.timeit(lambda: TEST_FUNC(np.zeros((9, 9, 9))), number=1)
+
     evaluate(puzzles, TEST_FUNC, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
