@@ -11,7 +11,7 @@
   - [Usage ](#usage-)
   - [Optimization Progress ](#optimization-progress-)
     - [Numba Speed Testing](#numba-speed-testing)
-    - [C-Map Heuristic Testing](#c-map-heuristic-testing)
+    - [Sorting by Collapse Value Heuristic](#sorting-by-collapse-value-heuristic)
     - [Minimizing Failed Recursions](#minimizing-failed-recursions)
 
 ## About <a name = "about"></a>
@@ -81,12 +81,13 @@ Njit:
 **Conclusion:** Njit is about ***~18x faster*** than non-njit.
            
 
-### C-Map Heuristic Testing
+### Sorting by Collapse Value Heuristic
 
 > **Notes:**  
-> - A C-Map *(collapse map, not an official term)* value is the sum of options in other cells that are directly affected by a given collapse and propagation.
-> - For these tests, once a cell with the lowest number of options is selected, those options are sorted and recursed on by their C-Map values.
-> - Collapsing options with lower C-Map values impacts fewer cells per recursion. 
+> - C value is an estimate of how many likely a cell is to contain a given option, by evaluating the minimum number of competitors out of that cell's row, column, and 3x3 region.  
+> - eg. C=9 shows that the evaluated cell option could theoretically be in any competing cell of that row, column, or region. C=1 means that the evaluated cell option has been solved, as it has no competitors in *either* its row, column, or region.
+> - For these tests, once a cell with the lowest number of options is selected, those options are sorted and recursed on by their C values.
+> - Collapsing options with lower C values impacts fewer cells per recursion. 
 > - The more cells affected by a collapse, the higher the chances of an invalid board state.  
 
 ```
@@ -102,7 +103,7 @@ Njit:
   sudokupy    : 0.0457672 (3541 recursions)    (100% ~ 100%)
  Average time : 0.0081151                          (100%)
 
-       Reverse C-Map sorting (high->low):
+       Reverse C sorting (high->low):
   easy        : 0.0000433 (   1 recursions)    (105.87% ~ 100%)
   medium      : 0.0002304 (  11 recursions)    (170.41% ~ 366.67%)
   evil        : 0.0007213 (  33 recursions)    (307.46% ~ 366.67%)
@@ -111,7 +112,7 @@ Njit:
   sudokupy    : 0.1120580 (7602 recursions)    (244.84 ~ 214.69%)
  Average time : 0.0193696                          (238.69%)   
 
-       C-Map sorting (low->high):
+       C sorting (low->high):
   easy        : 0.0000401 (   1 recursions)    (98.04%% ~ 100%)
   medium      : 0.0001241 (   5 recursions)    (91.79% ~ 166.67%)
   evil        : 0.0002044 (   7 recursions)    (87.13% ~ 77.78%)
@@ -122,22 +123,33 @@ Njit:
 ```
 
 **Conclusions:**
-- C-map sorting averages ***~7.5x faster*** than unsorted.
-- Njit + C-Map sorting averages ***135~141x faster*** than Non-njit + Unsorted.
-> - Selecting low C-Map values results in signicantly fewer recursions in uncertain board states.
-> - Selecting high C-Map values has the potential to reduce more overall uncertainty per recursion, but this is outweighed by the frequency of invalid board states.
+- C sorting averages ***~7.5x faster*** than unsorted.
+- Njit + C sorting averages ***135~141x faster*** than Non-njit + Unsorted.
+> - Selecting low C values results in signicantly fewer recursions in uncertain board states.
+> - Selecting high C values has the potential to reduce more overall uncertainty per recursion, but this is outweighed by the frequency of invalid board states.
 
 
 ### Minimizing Failed Recursions
 **Notes**:
+- These 
 - Sudokupy can potentially be solved in 34 recursions.
 - Viewing 
 ```
        Recursion success rate:
- Unsorted              (3541 total recursions - failed 3527 [99.60%].
- Reverse C-Map Sorting (7602 total recursions - failed 7588 [99.82%].
- C-Map Sorting         ( 335 total recursions - failed  321 [95.82%].
+ Unsorted              (3541 total recursions - failed 3527) [99.60%].
+ Reverse C-Map Sorting (7602 total recursions - failed 7588) [99.82%].
+ C-Map Sorting         ( 335 total recursions - failed  321) [95.82%].
 ```
 
 
 
+```
+Total Collapses:
+ easy        : 76
+ medium      : 75
+ evil        : 95
+ evil2       : 202
+ blank       : 78
+ ai_escargot : 1652
+ sudokupy    : 1843
+ ```
