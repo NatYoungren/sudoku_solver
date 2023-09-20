@@ -391,6 +391,7 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_
     times = {}
     recursions = {}
     failed_recursions = {}
+    collapses = {}
     
     for name, puzzle in puzzles.items():
         if verbose_loop:
@@ -399,17 +400,11 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_
         # Generate solver input
         puzzle = generate_probability_field(puzzle)
 
-        # Solve once manually for solution
+        # Solve once manually for solution and metrics
         start_time = time.time()
-        solution = solver(puzzle)
+        solution, recursions[name], failed_recursions[name], collapses[name] = solver(puzzle)
         end_time = time.time()
         
-        # Assume any additional values are recursion counts.
-        if len(solution) == 3:
-            recursions[name] = solution[1]
-            failed_recursions[name] = solution[2]
-            solution = solution[0]
-
         # Solve repeatedly for average time
         t = timeit.timeit(lambda: solver(puzzle), number=iterations)
         times[name] = t / iterations
@@ -428,11 +423,13 @@ def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_
         for name, t in times.items():
             r = recursions.get(name, np.nan)
             failed_r = failed_recursions.get(name, np.nan)
-            print(f' {name:<12}: {t:0.7f} ({r:>4} total recursions - failed {failed_r:>4}) [{(100/r)*failed_r:.2f}%]')
+            c_count = collapses.get(name, np.nan)
+            print(f' {name:<12}: {t:0.7f} ({r:>4} total recursions - failed {failed_r:>4}) [{(100/r)*failed_r:0.2f}%] ({c_count} total collapses)')
         print(f'Average time : {sum(times.values()) / len(times):.7f}')
 
 
 if __name__ == '__main__':
+    TEST_FUNC = ripple_solve
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
@@ -440,7 +437,5 @@ if __name__ == '__main__':
     if PREP_TIMEIT:
         # Presolve impossible puzzle:
         print(' >> Prepping timeit')
-        timeit.timeit(lambda: ripple_solve(np.zeros((9, 9, 9))), number=1)
-        # print(prob_field_to_puzzle(ripple_solve(np.ones((9, 9, 9)))))
-
-    evaluate(puzzles, ripple_solve, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
+        timeit.timeit(lambda: TEST_FUNC(np.zeros((9, 9, 9))), number=1)
+    evaluate(puzzles, TEST_FUNC, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
