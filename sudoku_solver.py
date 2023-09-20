@@ -93,11 +93,11 @@ def generate_probability_field(puzzle: np.ndarray):
     prob_field = np.zeros((9, 9, 9))
     for x, row in enumerate(puzzle):
         for y, col in enumerate(puzzle.T):
-
+            
             if puzzle[x][y] != 0:
                 prob_field[x][y][puzzle[x][y]-1] = 1
                 continue
-
+            
             region = get_region(puzzle, x, y)
             opts = get_options(row, col, region)
             for i in opts:
@@ -131,7 +131,7 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     yy = y // 3             # (xx, yy) is the top-left corner of the region containing x, y.
     pf[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
     pf[x, y, :] = 0         # Set all options for the x, y cell to 0.
-    pf[x][y][i] = 1         # Set the option i for the x, y cell to 1.
+    pf[x, y, i] = 1         # Set the option i for the x, y cell to 1.
 
     return pf
 
@@ -286,9 +286,9 @@ def recursive_collapse_solve(prob_field: np.ndarray, solution, layer=1, verbose=
 def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     """ Each recursion of ripple_solve will collapse every resolved cell until a choice must be made.
         These collapses are propagated to the rest of the grid, possibly resolving or breaking other cells.
-        At that point, a new ripple_solve will recursively each explore option of the cell with the lowest number of options.
+        At that point, a new ripple_solve will recursively explore each option of the cell with the lowest number of options.
 
-        A 9x9 grid (collapsed_cells) tracking which cells have bee collapsed is handed down to each recursive call, 
+        A 9x9 grid (collapsed_cells) tracking which cells have been collapsed is handed down to each recursive call, 
             this is to avoid pointlessly recollapsing every solved cell in the grid each time.
 
         Most effective solver so far.
@@ -330,14 +330,14 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
                 # Skip cells that have been previously collapsed.
                 # FIXME: Rather than skipping these, we should avoid including them in resolved indices.
-                if collapsed_cells[x][y]:
+                if collapsed_cells[x, y]:
                     continue
 
                 # Collapse the cell to the only option and propagate that change.
                 prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
 
                 # Mark the cell as collapsed.
-                collapsed_cells[x][y] = 1
+                collapsed_cells[x, y] = 1
 
         # If the puzzle was not altered, then there are no new cells which can be collapsed.
         # Instead, select the cell with the lowest number of options and recursively solve for each option.
@@ -345,7 +345,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
             # TODO: Find a simpler way to do this.
             unresolved_indices = np.argwhere(resolution_map > 1)
             x, y = unresolved_indices[np.argmin(resolution_map > 1)]
-            collapsed_cells[x][y] = 1
+            collapsed_cells[x, y] = 1
             
             # Recurse, passing a collapsed probability field and a copy of the collapsed cells.
             for i in np.where(prob_field[x][y])[0]:
@@ -362,13 +362,20 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     return None
 
 
-
 # # # # # # #
 # Evaluation
 #
 
 def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_end: bool = True):
+    """ Evaluates a solver against a set of puzzles.
 
+    Args:
+        puzzles (dict): Dict of puzzle name -> 9x9 np.ndarray.
+        solver (func): Solver function which takes and returns a 9x9x9 np.ndarray probability field.
+        iterations (int, optional): Number of iterations performed during timing. Defaults to 10.
+        verbose_loop (bool, optional): If True, print results of each puzzle during evaluation. Defaults to True.
+        verbose_end (bool, optional): If True, print overall results after all puzzles are evaluated. Defaults to True.
+    """
     times = {}
     for name, puzzle in puzzles.items():
         if verbose_loop:
@@ -405,10 +412,11 @@ if __name__ == '__main__':
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
 
+    
+    
     if PREP_TIMEIT:
         # Presolve blank puzzle:
         print(' >> Prepping timeit')
         timeit.timeit(lambda: ripple_solve(np.zeros((9, 9, 9))), number=1)
 
-    evaluate(puzzles, ripple_solve, iterations=ITERATIONS,
-             verbose_loop=VERBOSE_LOOP)
+    evaluate(puzzles, ripple_solve, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP)
