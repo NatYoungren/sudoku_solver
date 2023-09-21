@@ -229,7 +229,7 @@ def generate_heuristic_maps(prob_field: np.ndarray): # TODO: Consider returning 
     Returns:
         collapse_map (np.ndarray), value_map (np.ndarray): 9x9x9 heuristic grids.
             > collapse_map: 9x9x9 grid tracking the minimum number of competing cells for that value in a row/column/region.
-            > value_map: 9x9x9 grid tracking the number of cells affected any given collapse.
+            > weight_map: 9x9x9 grid tracking the number of cells affected any given collapse.
     """
     
     row_sums = prob_field.sum(axis=0)
@@ -244,16 +244,16 @@ def generate_heuristic_maps(prob_field: np.ndarray): # TODO: Consider returning 
     # NOTE: Consider using prob_field.copy() multiplying the values.
     #       This would leave all impossible values as 0.
     collapse_map = np.zeros((9, 9, 9))
-    value_map = np.zeros((9, 9, 9))
+    weight_map = np.zeros((9, 9, 9))
     
     for x in range(9):
         for y in range(9):
             for i in range(9):
                 # NOTE: Consider using sum?
-                value_map[x, y, i] = max(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
+                weight_map[x, y, i] = max(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
                 collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
                 
-    return collapse_map, value_map # TODO: Revisit these names, swap them?
+    return collapse_map, weight_map # TODO: Revisit these names, swap them?
     
     # for x in range(9):
     #     for y in range(9):
