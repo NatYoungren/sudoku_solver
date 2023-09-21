@@ -216,32 +216,44 @@ def get_options(row, col, region):  # TODO: Faster way to do this?
 # # # # # # #
 # Heuristic Utilities
 #
-# NOTE: These utilities are used to weight choices by the number of other cell options they remove from the puzzle upon collapse.
+# NOTE: These utilities are used to weight choices by their relationships with other cells.
 #
 
+@njit
+def generate_heuristic_maps(prob_field: np.ndarray): # TODO: Consider returning the 3 sets of sums.
+    """ Generates heuristics for each cell in the probability field.
 
-def make_collapse_map(prob_field: np.ndarray):
-    col_sums = prob_field.sum(axis=0)
-    print(col_sums.shape)
-    print(col_sums.shape)
+    Args:
+        prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
+
+    Returns:
+        collapse_map (np.ndarray), value_map (np.ndarray): 9x9x9 heuristic grids.
+            > collapse_map: 9x9x9 grid tracking the minimum number of competing cells for that value in a row/column/region.
+            > value_map: 9x9x9 grid tracking the number of cells affected any given collapse.
+    """
     
-    row_sums = prob_field.sum(axis=1)
-    region_sums = np.zeros((9, 9, 9))
+    row_sums = prob_field.sum(axis=0)
+    col_sums = prob_field.sum(axis=1)
+    region_sums = np.zeros((9, 9))
     
-            
-    collapse_map = np.zeros((9, 9, 9))
-    
+    # TODO: Make this more efficient?
     for x in range(3):
         for y in range(3):
-            region_sums[x, y] = prob_field[x*3:x*3+3, y*3:y*3+3].sum(axis=(0, 1))
-            collapse_map[x*3:x*3+3, y*3:y*3+3] += region_sums[x, y]
+            region_sums[x*3+y] = prob_field[x*3:x*3+3, y*3:y*3+3].sum(axis=0).sum(axis=0)
     
+    # NOTE: Consider using prob_field.copy() multiplying the values.
+    #       This would leave all impossible values as 0.
+    collapse_map = np.zeros((9, 9, 9))
+    value_map = np.zeros((9, 9, 9))
     
-    for i in range(9):
-        collapse_map[i] += col_sums[i]
-        collapse_map[:, i] += row_sums[i]
-        
-    
+    for x in range(9):
+        for y in range(9):
+            for i in range(9):
+                # NOTE: Consider using sum?
+                value_map[x, y, i] = max(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
+                collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
+                
+    return collapse_map, value_map # TODO: Revisit these names, swap them?
     
     # for x in range(9):
     #     for y in range(9):
