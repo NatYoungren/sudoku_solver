@@ -525,6 +525,58 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
             
     # If no option lead to a solution, the puzzle is unsolvable.
     return None, recursions, failed_recursions, collapse_count
+
+
+#
+# Recursive Solver
+# Essentially ripple solve, but without naive collapse propagation.
+@njit
+def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+    if collapsed_cells is None:
+        collapsed_cells = np.zeros((9, 9))
+        
+    # DEBUG: Track metrics.
+    recursions = 1          # Total recursions (including first call)
+    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
+    collapse_count = 0      # Total number of cells collapsed.
+    
+    # Sum the probability field along the value axis.
+    #   The value of each cell is equal to the number of remaining options for that cell.
+    resolution_map = prob_field.sum(axis=2) # TODO: Replace resolution mapping with collapse map
+
+    if not resolution_map.all():
+        return None, recursions, failed_recursions, collapse_count
+    
+    if resolution_map.sum() == 81:
+        return prob_field, recursions, failed_recursions, collapse_count
+    
+    mask_2darray_inplace(resolution_map, collapsed_cells)
+
+    # Find the cell with the lowest number of options (that has not been previously collapsed).
+    c = np.argmin(resolution_map)
+    x, y = c // 9, c % 9
+    collapsed_cells[x, y] = 1
+    collapse_count += 1
+    
+    # NOTE: This performs collapse_value calculation even when unneeded, replace with collapse_mapping
+    indexes = np.where(prob_field[x][y])[0]
+    c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
+    for _, i in sorted(zip(c_values, indexes), reverse=False):
+        
+        # Result, recursion_count, failed_recursions
+        pf = prob_field.copy()
+        collapse_probability_field(pf, x, y, i)
+        r, _rs, _frs, _c = recursive_solve(pf, collapsed_cells.copy())
+        
+        recursions += _rs           # Update the tracked metrics.
+        failed_recursions += _frs   #
+        collapse_count += _c + 1    #
+        if r is not None:
+            return r,  recursions, failed_recursions, collapse_count
+        
+    return None, recursions, failed_recursions, collapse_count
+
+
 # # # # # # #
 # Evaluation
 #
