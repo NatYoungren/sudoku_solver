@@ -140,26 +140,22 @@ def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray):
 def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     """ Collapses an x, y cell to a single given value-index (i).
         Perpetuates that change to the rest of the grid by removing the value-index (i) from all other cells in the row, column, and region.
-
+        Modifies prob_field in place.
+        
     Args:
         prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
         x (int): X coordinate of the cell to collapse.
         y (int): Y coordinate of the cell to collapse.
         i (int): Index of the value to collapse to. (0-8)
-
-    Returns:
-        np.ndarray: Altered copy of the probability field.
     """
-    pf = prob_field.copy()
-    pf[x, :, i] = 0         # Set option i to 0 for all cells in the x column.
-    pf[:, y, i] = 0         # Set option i to 0 for all cells in the y row.
+    prob_field[x, :, i] = 0         # Set option i to 0 for all cells in the x column.
+    prob_field[:, y, i] = 0         # Set option i to 0 for all cells in the y row.
     xx = x // 3             # Set option i to 0 for all cells in the region.
     yy = y // 3             # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
-    pf[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
-    pf[x, y, :] = 0         # Set all options for the x, y cell to 0.
-    pf[x, y, i] = 1         # Set the option i for the x, y cell to 1.
+    prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
+    prob_field[x, y, :] = 0         # Set all options for the x, y cell to 0.
+    prob_field[x, y, i] = 1         # Set the option i for the x, y cell to 1.
 
-    return pf
 
 
 @njit # TODO: Look for a more efficient njit-compatible method
@@ -380,7 +376,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         A 9x9 grid (collapsed_cells) tracking which cells have bee collapsed is handed down to each recursive call, 
             this is to avoid pointlessly recollapsing every solved cell in the grid each time.
 
-        Most effective solver so far.
+        First effective solver.
 
     Args:
         prob_field (np.ndarray): A 9x9x9 numpy array representing a sudoku puzzle probability field.
@@ -397,16 +393,18 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     # DEBUG: Track metrics.
     recursions = 1          # Total recursions (including first call)
     failed_recursions = 0   # TODO: Consider tracking to max depth instead.
-    
+        
     # Collapse all cells with only one option until no more remain, or the puzzle is unsolvable.
-    prob_field, collapse_count = propagate_collapse(prob_field=prob_field, collapsed_cells=collapsed_cells)
+    state, collapse_count = propagate_collapse(prob_field=prob_field, collapsed_cells=collapsed_cells)
     
-    # If the puzzle is unsolvable, return None.
-    if prob_field is None:
+    if state == 0:
         return None, recursions, failed_recursions, collapse_count
+    if state == 2:
+        return prob_field, recursions, failed_recursions, collapse_count
     
     # Sum the probability field along the value axis.
     resolution_map = prob_field.sum(axis=2)
+    
     if resolution_map.sum() == 81:
         return prob_field, recursions, failed_recursions, collapse_count
     
@@ -421,9 +419,11 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
     
     for i in indexes:
-        
-        # Result, recursion_count, failed_recursions
-        r, _rs, _frs, _c = ripple_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
+        # Create a copy of the probability field and collapse the cell to the current option.
+        pf = prob_field.copy()
+        collapse_probability_field(pf, x, y, i)
+        # Result, recursion_cunt, failed_recursions
+        r, _rs, _frs, _c = ripple_solve(pf, collapsed_cells.copy())
         
         recursions += _rs           # Update the tracked metrics.
         failed_recursions += _frs   # NOTE: Used for heuristic testing.
@@ -435,7 +435,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         
         # If no solution is found, increment the failed recursion count.
         failed_recursions += 1
-            
+        
     # If no option lead to a solution, the puzzle is unsolvable.
     return None, recursions, failed_recursions, collapse_count
 
