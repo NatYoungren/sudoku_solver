@@ -39,11 +39,11 @@ def generate_probability_field(puzzle: np.ndarray):
     prob_field = np.zeros((9, 9, 9))
     for x, row in enumerate(puzzle):
         for y, col in enumerate(puzzle.T):
-
+            
             if puzzle[x][y] != 0:
                 prob_field[x][y][puzzle[x][y]-1] = 1
                 continue
-
+            
             region = get_region(puzzle, x, y)
             opts = get_options(row, col, region)
             for i in opts:
@@ -386,9 +386,9 @@ def naive_solve(puzzle: np.ndarray, verbose=False):
 def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     """ Each recursion of ripple_solve will collapse every resolved cell until a choice must be made.
         These collapses are propagated to the rest of the grid, possibly resolving or breaking other cells.
-        At that point, a new ripple_solve will recursively each explore option of the cell with the lowest number of options.
+        At that point, a new ripple_solve will recursively explore each option of the cell with the lowest number of options.
 
-        A 9x9 grid (collapsed_cells) tracking which cells have bee collapsed is handed down to each recursive call, 
+        A 9x9 grid (collapsed_cells) tracking which cells have been collapsed is handed down to each recursive call, 
             this is to avoid pointlessly recollapsing every solved cell in the grid each time.
 
         First effective solver.
@@ -654,6 +654,14 @@ def collapse_solve(prob_field: np.ndarray, remaining_cells: np.ndarray = None,
 #
 
 def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose_end: bool = True):
+    """ Evaluates a set of solvers against a set of puzzles.
+    Args:
+        puzzles (dict): Dict of puzzle name -> 9x9 np.ndarray.
+        solvers (list(func)): Solver functions which take and returns a 9x9x9 np.ndarray probability field.
+        iterations (int, optional): Number of iterations performed during timing. Defaults to 10.
+        verbose_loop (bool, optional): If True, print results of each puzzle during evaluation. Defaults to True.
+        verbose_end (bool, optional): If True, print overall results after all puzzles are evaluated. Defaults to True.
+    """
     for solver in solvers:
         times = {}
         recursions = {}
