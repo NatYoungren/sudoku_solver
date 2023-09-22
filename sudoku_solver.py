@@ -171,6 +171,7 @@ def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray):
         
     return 0, collapse_count
 
+
 @njit
 def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     """ Collapses an x, y cell to a single given value-index (i).
@@ -190,8 +191,7 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
     prob_field[x, y, :] = 0         # Set all options for the x, y cell to 0.
     prob_field[x, y, i] = 1         # Set the option i for the x, y cell to 1.
-
-
+    
 
 @njit # TODO: Look for a more efficient njit-compatible method
 def mask_2darray(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
@@ -202,6 +202,7 @@ def mask_2darray(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
                 arr[x][y] = maskval
     return arr
 
+
 @njit # Same as above, but in-place.
 def mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
     w, h = arr.shape[:2]
@@ -209,6 +210,7 @@ def mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
         for y in range(h):
             if mask_arr[x][y]:
                 arr[x][y] = maskval
+                
                 
 @njit # Same as above, inverse mask.
 def inverse_mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
@@ -260,29 +262,34 @@ def generate_heuristic_maps(prob_field: np.ndarray): # TODO: Consider returning 
                 collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
                 
     return collapse_map, weight_map # TODO: Revisit these names, swap them?
-    
-    # for x in range(9):
-    #     for y in range(9):
-    #         # collapse_map[x, y] = np.minimum(col_sums[x], row_sums[y], region_sums[x//3, y//3])
-    #         for i in range(9):
-    #             print(collapse_map[x, y, i])
-                # collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[x//3, y//3, i])
-                # print(x, y, i,'____', collapse_map[x, y, i],'->', collapse_value(prob_field, x, y, i))
-                
-    print('col', col_sums)
-    print('row', row_sums)
-    print('reg', region_sums)
-    print('map', collapse_map)
-    
-    return collapse_map
 
-def collapse_sums(prob_field):
-    col_sums = prob_field.sum(axis=0)
-    row_sums = prob_field.sum(axis=1)
-    region_sums = np.zeros((3, 3, 9))
-    for x in range(3):
-        for y in range(3):
-            region_sums[x, y] = prob_field[x*3:x*3+3, y*3:y*3+3].sum(axis=(0, 1))
+
+# @njit
+# def apply_collapse_scalar(prob_field: np.ndarray):
+#     # Modifies probability field to contain probability values between 0 and 1
+#     # Returns value field which contains the number of options
+    
+#     # Modifies the probability field in place.
+#     row_sums = prob_field.sum(axis=0)
+#     col_sums = prob_field.sum(axis=1)
+
+#     region_sums = np.zeros((9, 9))
+#     value_field = np.zeros((9, 9, 9))
+    
+#     # TODO: Make this more efficient?
+#     for x in range(3):
+#         for y in range(3):
+#             region_sums[x*3+y] = prob_field[x*3:x*3+3, y*3:y*3+3].sum(axis=0).sum(axis=0)
+
+#     for x in range(9):
+#         for y in range(9):
+#             for i in range(9):
+#                 # Consider using sum?
+#                 value_field[x, y, i] = max(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
+#                 prob_field[x, y, i] /= min(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
+                
+#     return value_field
+
 
 # Low collapse value means the choice is less likely to lead to a broken board state.
 @njit
@@ -290,6 +297,7 @@ def collapse_value(prob_field: np.ndarray, x: int, y: int, i: int):
     xx = x // 3
     yy = y // 3
     return min(prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum(), prob_field[x, :, i].sum(), prob_field[:, y, i].sum())
+
 
 # Note that the value of the cell overall included once in the final sum:
 #   row + col + (region - row/reg_overlap - col/reg_overlap) = sum
@@ -303,24 +311,29 @@ def collapse_sum(prob_field: np.ndarray, x: int, y: int, i: int):
     region = prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum() - prob_field[xx*3:xx*3+3, y, i].sum() - prob_field[x, yy*3:yy*3+3, i].sum()
     return row + col + region
 
+
 # Leaving these alone for future reference, note that they all subtract the cell value from the result.
 @njit 
 def evaluate_collapse_sum(prob_field: np.ndarray, x: int, y: int, i: int):
     return evaluate_row_value(prob_field, x, y, i) + evaluate_col_value(prob_field, x, y, i) + evaluate_region_value(prob_field, x, y, i)
 
+
 @njit
 def evaluate_row_value(prob_field: np.ndarray, x: int, y: int, i: int):
     return prob_field[x, :, i].sum() - prob_field[x, y, i]
 
+
 @njit
 def evaluate_col_value(prob_field: np.ndarray, x: int, y: int, i: int):
     return prob_field[:, y, i].sum() - prob_field[x, y, i]
+
 
 @njit
 def evaluate_region_value(prob_field: np.ndarray, x: int, y: int, i: int):
     xx = x // 3
     yy = y // 3
     return prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum() - prob_field[x, y, i]
+
 
 # # # # # # #
 # Solvers
@@ -364,6 +377,7 @@ def naive_solve(puzzle: np.ndarray, verbose=False):
                 return naive_solve(puzzle, verbose)
     
     return puzzle
+
 
 #
 # Recursive Ripple Solver
@@ -441,7 +455,6 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     return None, recursions, failed_recursions, collapse_count
 
 
-
 #
 # Recursive Solver w/ Masking
 # Attempt at using array masking to simplify cell selection.
@@ -454,17 +467,10 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     recursions = 1          # Total recursions (including first call)
     failed_recursions = 0   # TODO: Consider tracking to max depth instead.
     collapse_count = 0      # Total number of cells collapsed.
-    
-    # prob_field, _c = propagate_collapse(prob_field, collapsed_cells)
-    # collapse_count += _c
-    
-    # if prob_field is None:
-    #     return None, recursions, failed_recursions, collapse_count
-    
+        
     # Sum the probability field along the value axis.
     #   The value of each cell is equal to the number of remaining options for that cell.
     resolution_map = prob_field.sum(axis=2) # TODO: Replace resolution mapping with collapse map
-    
     
     # Overwrite any previously collapsed cells with a high value (10).
     masked_array = mask_2darray(resolution_map, collapsed_cells)
@@ -473,36 +479,34 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     c = np.argmin(masked_array)
     x, y = c // 9, c % 9
     
-    
     # Collapse all cells with only one option until no more remain.
     while masked_array[x, y] == 1:
+        
         collapse_count += 1
         collapsed_cells[x, y] = 1
-        
         collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x, y]))
         
+        # Regenerate the masked array and min cell index.
         resolution_map = prob_field.sum(axis=2)
-        
-        # Regenerate the masked array and min cell.
         masked_array = mask_2darray(resolution_map, collapsed_cells) 
         c = np.argmin(masked_array)
         x, y = c // 9, c % 9
         
-        # If any cell has no options, the puzzle is in a unsolvable state.
-        if resolution_map[x, y] == 0:
-            return None, recursions, failed_recursions, collapse_count
+    # If any cell has no options, the puzzle is in a unsolvable state.
+    if resolution_map[x, y] == 0:
+        return None, recursions, failed_recursions, collapse_count
     
     # If all cells have an option and there is one option per cell, the puzzle is solved.
     if resolution_map.sum() == 81: # TODO: Should this be reorganized? Reintroduce the while True?
         return prob_field, recursions, failed_recursions, collapse_count
     
-
-    
     # The cell with the least options still has > 1 options, so we recurse for each option.
     collapsed_cells[x, y] = 1
     indexes = np.where(prob_field[x][y])[0]
+    
     # Calculate the collapse value for each option.
     c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
+    
     # Sort the options by collapse value, beginning with the lowest.
     indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
     
@@ -557,7 +561,6 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     c = np.argmin(resolution_map)
     x, y = c // 9, c % 9
     collapsed_cells[x, y] = 1
-    collapse_count += 1
     
     # NOTE: This performs collapse_value calculation even when unneeded, replace with collapse_mapping
     indexes = np.where(prob_field[x][y])[0]
@@ -630,7 +633,7 @@ if __name__ == '__main__':
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
         puzzles.pop('ai_escargot', None)
-        
+ 
     if PREP_TIMEIT:
         # Presolve impossible puzzle:
         print(' > Prepping timeit')
