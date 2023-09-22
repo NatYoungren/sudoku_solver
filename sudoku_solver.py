@@ -442,11 +442,10 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
 
 #
-# Recursive Heuristic Solver
-# This solver is a work in progress, attempting to incorporate more heuristic information into the solver.
-# Trying to minimize breaking changes to the probability field.
+# Recursive Solver w/ Masking
+# Attempt at using array masking to simplify cell selection.
 @njit
-def heuristic_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9))
     
@@ -455,83 +454,77 @@ def heuristic_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     failed_recursions = 0   # TODO: Consider tracking to max depth instead.
     collapse_count = 0      # Total number of cells collapsed.
     
-    # Used to track whether the probability field was altered by the last iteration.
-    while not collapsed_cells.all():
-        
-        # Sum the probability field along the value axis.
-        # TODO: Replace resolution mapping with collapse map
-        resolution_map = prob_field.sum(axis=2)
+    # prob_field, _c = propagate_collapse(prob_field, collapsed_cells)
+    # collapse_count += _c
+    
+    # if prob_field is None:
+    #     return None, recursions, failed_recursions, collapse_count
+    
+    # Sum the probability field along the value axis.
+    #   The value of each cell is equal to the number of remaining options for that cell.
+    resolution_map = prob_field.sum(axis=2) # TODO: Replace resolution mapping with collapse map
+    
+    
+    # Overwrite any previously collapsed cells with a high value (10).
+    masked_array = mask_2darray(resolution_map, collapsed_cells)
 
-        # If any cell has no options, the puzzle is unsolvable.
-        if not resolution_map.all():
-            prob_field = None
-            break
-        
-        if resolution_map.sum() == 81:
-            break
-        
-        mask_2darray(resolution_map, collapsed_cells)
-        
-        # c_map = make_collapse_map(prob_field)
-        
-        # print(resolution_map)
-        
-        
-        
-        # print(x, y)
+    # Find the cell with the lowest number of options (that has not been previously collapsed).
+    c = np.argmin(masked_array)
+    x, y = c // 9, c % 9
+    
+    
+    # Collapse all cells with only one option until no more remain.
+    while masked_array[x, y] == 1:
+        collapse_count += 1
         collapsed_cells[x, y] = 1
         
-        #   Old one-cell-per-loop naive collapse.
-        # i = np.argmin(resolution_map)
-        # x, y = i // 9, i % 9
+        collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x, y]))
         
-        # if resolution_map[x, y] == 1:
-        #     collapse_count += 1
-        #     prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
+        resolution_map = prob_field.sum(axis=2)
         
+        # Regenerate the masked array and min cell.
+        masked_array = mask_2darray(resolution_map, collapsed_cells) 
+        c = np.argmin(masked_array)
+        x, y = c // 9, c % 9
         
-        while np.min(resolution_map) == 1:
-            i = np.argmin(resolution_map)
-            x, y = i // 9, i % 9
-            collapse_count += 1
-            collapsed_cells[x, y] = 1
-            prob_field = collapse_probability_field(prob_field, x, y, np.argmax(prob_field[x][y]))
-            
-            resolution_map = prob_field.sum(axis=2)
-            mask_2darray(resolution_map, collapsed_cells)
-            
-        else:
-            i = np.argmin(resolution_map)
-            x, y = i // 9, i % 9
-            
-            collapsed_cells[x, y] = 1
-            
-            indexes = np.where(prob_field[x][y])[0]
-            c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
-            indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
-            
-            for i in indexes:
-                
-                # Result, recursion_count, failed_recursions
-                r, _rs, _frs, _c = heuristic_solve(collapse_probability_field(prob_field, x, y, i), collapsed_cells.copy())
-                
-                recursions += _rs           # Update the tracked metrics.
-                failed_recursions += _frs   # NOTE: Used for heuristic testing.
-                collapse_count += _c + 1    # 
+        # If any cell has no options, the puzzle is in a unsolvable state.
+        if resolution_map[x, y] == 0:
+            return None, recursions, failed_recursions, collapse_count
+    
+    # If all cells have an option and there is one option per cell, the puzzle is solved.
+    if resolution_map.sum() == 81: # TODO: Should this be reorganized? Reintroduce the while True?
+        return prob_field, recursions, failed_recursions, collapse_count
+    
 
-                # If a solution is found, return it.
-                if r is not None:
-                    return r,  recursions, failed_recursions, collapse_count
-                                
-                # If no solution is found, increment the failed recursion count.
-                failed_recursions += 1
-                
-            # If no option lead to a solution, the puzzle is unsolvable.
-            prob_field = None
-            break
+    
+    # The cell with the least options still has > 1 options, so we recurse for each option.
+    collapsed_cells[x, y] = 1
+    indexes = np.where(prob_field[x][y])[0]
+    # Calculate the collapse value for each option.
+    c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
+    # Sort the options by collapse value, beginning with the lowest.
+    indexes = [x for _, x in sorted(zip(c_values, indexes), reverse=False)]
+    
+    for i in indexes:
+        
+        # Result, recursion_count, failed_recursions
+        pf = prob_field.copy()
+        collapse_probability_field(pf, x, y, i)
+        r, _rs, _frs, _c = masked_solve(pf, collapsed_cells.copy())
+        
+        recursions += _rs           # Update the tracked metrics.
+        failed_recursions += _frs   # NOTE: Used for heuristic testing.
+        collapse_count += _c + 1    # 
 
-    return prob_field, recursions, failed_recursions, collapse_count
-
+        # If a solution is found, return it.
+        if r is not None:
+            return r,  recursions, failed_recursions, collapse_count
+                        
+        # If no solution is found, increment the failed recursion count.
+        failed_recursions += 1
+            
+    # If no option lead to a solution, the puzzle is unsolvable.
+    return None, recursions, failed_recursions, collapse_count
 # # # # # # #
 # Evaluation
 #
