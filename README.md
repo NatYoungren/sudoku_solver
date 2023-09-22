@@ -132,7 +132,6 @@ Njit:
 ### Minimizing Failed Recursions
 **Notes**:
 - These 
-- Sudokupy can potentially be solved in 34 recursions.
 - Viewing 
 ```
        Recursion success rate:
@@ -152,4 +151,16 @@ Total Collapses:
  blank       : 78
  ai_escargot : 1652
  sudokupy    : 1843
- ```
+```
+
+```
+Heuristic Solver w/ Ripple Loop
+ easy        : 0.0001836 (   1 total recursions - failed    0) [0.00%] (81 total collapses)
+ medium      : 0.0002086 (   6 total recursions - failed    0) [0.00%] (81 total collapses)
+ evil        : 0.0005242 (  21 total recursions - failed   15) [71.43%] (204 total collapses)
+ evil2       : 0.0004667 (  25 total recursions - failed   16) [64.00%] (173 total collapses)
+ blank       : 0.0003518 (  49 total recursions - failed    0) [0.00%] (81 total collapses)
+ ai_escargot : 0.0012349 (  45 total recursions - failed   34) [75.56%] (498 total collapses)
+ sudokupy    : 0.0026236 ( 163 total recursions - failed  148) [90.80%] (1020 total collapses)
+Average time : 0.0007991
+```
