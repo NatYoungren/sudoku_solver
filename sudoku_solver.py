@@ -581,50 +581,50 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 # Evaluation
 #
 
-def evaluate(puzzles, solver, iterations=10, verbose_loop: bool = True, verbose_end: bool = True):
+def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose_end: bool = True):
+    for solver in solvers:
+        times = {}
+        recursions = {}
+        failed_recursions = {}
+        collapses = {}
 
-    times = {}
-    recursions = {}
-    failed_recursions = {}
-    collapses = {}
-    
-    for name, puzzle in puzzles.items():
-        if verbose_loop:
-            print('\n Solving', name, '\n')
+        for name, puzzle in puzzles.items():
+            if verbose_loop:
+                print('\n Solving', name, 'with', solver.__name__, '\n')
 
-        # Generate solver input
-        puzzle = generate_probability_field(puzzle)
+            # Generate solver input
+            prob_field = generate_probability_field(puzzle)
 
-        # Solve once manually for solution and metrics
-        start_time = time.time()
-        solution, recursions[name], failed_recursions[name], collapses[name] = solver(puzzle)
-        end_time = time.time()
-        
-        # Solve repeatedly for average time
-        t = timeit.timeit(lambda: solver(puzzle), number=iterations)
-        times[name] = t / iterations
-        
-        # Print puzzle results
-        if verbose_loop:
-            solved_puzzle = prob_field_to_puzzle(solution)
-            unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
-            print(solved_puzzle)
-            print(f'Average time: {t / iterations} seconds.')
-            print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
+            # Solve once manually for solution and metrics
+            start_time = time.time()
+            solution, recursions[name], failed_recursions[name], collapses[name] = solver(prob_field)
+            end_time = time.time()
 
-    # Print overall results
-    if verbose_end:
-        print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
-        for name, t in times.items():
-            r = recursions.get(name, np.nan)
-            failed_r = failed_recursions.get(name, np.nan)
-            c_count = collapses.get(name, np.nan)
-            print(f' {name:<12}: {t:0.7f} ({r:>4} total recursions - failed {failed_r:>4}) [{(100/r)*failed_r:0.2f}%] ({c_count} total collapses)')
-        print(f'Average time : {sum(times.values()) / len(times):.7f}')
+            # Solve repeatedly for average time
+            t = timeit.timeit(lambda: solver(prob_field), number=iterations)
+            times[name] = t / iterations
+            
+            # Print puzzle results
+            if verbose_loop:
+                solved_puzzle = prob_field_to_puzzle(solution)
+                unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
+                print(solved_puzzle)
+                print(f'Average time: {t / iterations} seconds.')
+                print(f'Finished in {end_time - start_time} seconds with {unsolved_nodes} unsolved nodes.')
+
+        # Print overall results
+        if verbose_end:
+            print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
+            for name, t in times.items():
+                r = recursions.get(name, np.nan)
+                failed_r = failed_recursions.get(name, np.nan)
+                c_count = collapses.get(name, np.nan)
+                print(f' {name:<12}: {t:0.7f} ({r:>4} total recursions - failed {failed_r:>4}) [{(100/r)*failed_r:0.2f}%] ({c_count} total collapses)')
+            print(f'Average time : {sum(times.values()) / len(times):.7f}')
 
 
 if __name__ == '__main__':
-    TEST_FUNC = heuristic_solve
+    TEST_FUNCS = [ripple_solve, masked_solve, recursive_solve]
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
@@ -632,9 +632,9 @@ if __name__ == '__main__':
         
     if PREP_TIMEIT:
         # Presolve impossible puzzle:
-        print(' >> Prepping timeit')
-        
-       
-        timeit.timeit(lambda: TEST_FUNC(np.zeros((9, 9, 9))), number=1)
+        print(' > Prepping timeit')
+        for f in TEST_FUNCS:
+            print(f' >> {f.__name__}')
+            timeit.timeit(lambda: f(np.zeros((9, 9, 9))), number=1)
 
-    evaluate(puzzles, TEST_FUNC, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
+    evaluate(puzzles, TEST_FUNCS, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
