@@ -73,6 +73,41 @@ def prob_field_to_puzzle(prob_field: np.ndarray):
                 out_puzzle[x][y] = -1
     return out_puzzle
 
+def get_region(puzzle, x, y):  # TODO: Faster way to do this?
+    """ Returns the 3x3 region of the puzzle that contains the given cell.
+
+    Args:
+        puzzle (np.ndarray): Sudoku puzzle as a 9x9 numpy array.
+        x (int): X coordinate of the cell.
+        y (int): Y coordinate of the cell.
+
+    Returns:
+        np.ndarray: Flattened 3x3 region of the puzzle.
+    """
+    x = x // 3
+    y = y // 3
+    rows = puzzle[x*3:x*3+3]
+    cols = rows[:, y*3:y*3+3]
+    region = cols.flatten()
+    return region
+
+
+def get_options(row, col, region):  # TODO: Faster way to do this?
+    """ Returns all unresolved options (1-9) for a row/column/region combination.
+
+    Args:
+        row (np.ndarray): The 9 numerical values in a row.
+        col (np.ndarray): The 9 numerical values in a column.
+        region (np.ndarray): The 9 numerical values in a region.
+                                Empty regions are represented as 0.
+
+    Returns:
+        list: List of 1-9 integers not present in any row/column/region.
+    """
+    taken = set(np.concatenate((row, col, region)).flatten())
+    return [i for i in range(1, 10) if i not in taken]
+
+
 # # # # # # #
 # Solver Utilities
 #
@@ -182,40 +217,6 @@ def inverse_mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=
         for y in range(h):
             if not mask_arr[x][y]:
                 arr[x][y] = maskval
-
-def get_region(puzzle, x, y):  # TODO: Faster way to do this?
-    """ Returns the 3x3 region of the puzzle that contains the given cell.
-
-    Args:
-        puzzle (np.ndarray): Sudoku puzzle as a 9x9 numpy array.
-        x (int): X coordinate of the cell.
-        y (int): Y coordinate of the cell.
-
-    Returns:
-        np.ndarray: Flattened 3x3 region of the puzzle.
-    """
-    x = x // 3
-    y = y // 3
-    rows = puzzle[x*3:x*3+3]
-    cols = rows[:, y*3:y*3+3]
-    region = cols.flatten()
-    return region
-
-
-def get_options(row, col, region):  # TODO: Faster way to do this?
-    """ Returns all unresolved options (1-9) for a row/column/region combination.
-
-    Args:
-        row (np.ndarray): The 9 numerical values in a row.
-        col (np.ndarray): The 9 numerical values in a column.
-        region (np.ndarray): The 9 numerical values in a region.
-                                Empty regions are represented as 0.
-
-    Returns:
-        list: List of 1-9 integers not present in any row/column/region.
-    """
-    taken = set(np.concatenate((row, col, region)).flatten())
-    return [i for i in range(1, 10) if i not in taken]
 
 
 # # # # # # #
