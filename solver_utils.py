@@ -1,3 +1,7 @@
+# Nat Youngren
+# September 25, 2023
+#
+
 from numba import njit
 import numpy as np
 

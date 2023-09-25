@@ -1,3 +1,7 @@
+# Nat Youngren
+# September 25, 2023
+#
+
 import numpy as np
 
 # # # # # # #
