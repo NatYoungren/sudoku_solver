@@ -5,23 +5,10 @@
 import numpy as np
 from numba import njit
 import json
-import time
-import timeit
 
 from setup_utils import get_region, get_options, generate_probability_field, prob_field_to_puzzle, validate_solution
 from solver_utils import collapse_probability_field, propagate_collapse, mask_2darray, mask_2darray_inplace, inverse_mask_2darray_inplace
 from heuristic_utils import generate_heuristic_maps, collapse_value
-
-np.set_printoptions(linewidth=np.inf)
-
-PUZZLE_FILE = 'sudoku_puzzle.json'
-ITERATIONS = 1000
-PREP_TIMEIT = True
-
-VERBOSE_LOOP = True
-VERBOSE_END = True
-
-
 
 # # # # # # #
 # Solvers
@@ -329,92 +316,20 @@ def collapse_solve(prob_field: np.ndarray, remaining_cells: np.ndarray = None,
         return
         
 
-    print(min_index)
-    return 
 
-
-# # # # # # #
-# Evaluation
-#
-
-def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose_end: bool = True):
-    """ Evaluates a set of solvers against a set of puzzles.
-    Args:
-        puzzles (dict): Dict of puzzle name -> 9x9 np.ndarray.
-        solvers (list(func)): Solver functions which take and returns a 9x9x9 np.ndarray probability field.
-        iterations (int, optional): Number of iterations performed during timing. Defaults to 10.
-        verbose_loop (bool, optional): If True, print results of each puzzle during evaluation. Defaults to True.
-        verbose_end (bool, optional): If True, print overall results after all puzzles are evaluated. Defaults to True.
-    """
-    for solver in solvers:
-        times = {}
-        recursions = {}
-        failed_recursions = {}
-        collapses = {}
-        was_correct = {}
-        
-        for name, puzzle in puzzles.items():
-            if verbose_loop:
-                print('\n Solving', name, 'with', solver.__name__, '\n')
-
-            # Generate solver input
-            puzzle = np.array(puzzle)
-            prob_field = generate_probability_field(puzzle)
-
-            # Solve once manually for solution and metrics
-            start_time = time.time()
-            solution, recursions[name], failed_recursions[name], collapses[name] = solver(prob_field)
-            end_time = time.time()
-            
-            # Solve repeatedly for average time
-            t = timeit.timeit(lambda: solver(prob_field), number=iterations)
-            times[name] = t / iterations
-            
-            # Validate solution
-            solved_puzzle = prob_field_to_puzzle(solution)
-            was_correct[name] = validate_solution(puzzle, solved_puzzle)
-            
-            # Print puzzle results
-            if verbose_loop:
-                solved_puzzle = solved_puzzle
-                unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
-                print(solved_puzzle)
-                print(f'Average time: {times[name]:0.7f} seconds.')
-                print(f'Finished in {end_time - start_time:0.7f} seconds with {unsolved_nodes} unsolved nodes.')
-                if not was_correct[name][0]:
-                    print('Solution was invalid:')
-                    for line in was_correct[name][1]:
-                        print('>', line)
-
-        # Print overall results
-        if verbose_end:
-            print(f'\n\n {iterations} iterations of {solver.__name__}:\n')
-            for name, t in times.items():
-                r = recursions.get(name, np.nan)
-                failed_r = failed_recursions.get(name, np.nan)
-                c_count = collapses.get(name, np.nan)
-                print(f' {name:<12}: {t:0.7f} ({r:>4} total recursions - failed {failed_r:>4}) [{(100/r)*failed_r:0.2f}%] ({c_count} total collapses)')
-            print(f'Average time : {sum(times.values()) / len(times):.7f}')
 
 
 if __name__ == '__main__':
-    TEST_FUNCS = [ripple_solve, masked_solve, recursive_solve]
+        
+    np.set_printoptions(linewidth=np.inf)
 
+    PUZZLE_FILE = 'sudoku_puzzle.json'
+# 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
         puzzles.pop('ai_escargot', None)
         
-    # prob_field = generate_probability_field(puzzles['evil'])
-    # solution, recursions, failed_recursions, collapses = collapse_solve(prob_field)
-    # print(prob_field_to_puzzle(solution))
-    # print(recursions, failed_recursions, collapses)
-    # quit()
-    
-    if PREP_TIMEIT:
-        # Presolve impossible puzzle:
-        print(' > Prepping timeit')
-        for f in TEST_FUNCS:
-            print(f' >> {f.__name__}')
-            timeit.timeit(lambda: f(np.zeros((9, 9, 9), dtype=np.uint8)), number=1)
-
-    evaluate(puzzles, TEST_FUNCS, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
+    prob_field = generate_probability_field(puzzles['evil'])
+    solution, recursions, failed_recursions, collapses = collapse_solve(prob_field)
+    print(prob_field_to_puzzle(solution))
+    print(recursions, failed_recursions, collapses)
