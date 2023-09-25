@@ -292,7 +292,7 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None,
     
     
     
-    c_map, w_map = generate_heuristic_maps(prob_field)
+    c_map, w_map = generate_heuristic_maps(prob_field, collapsed_cells)
     # valid_idx = np.where(prob_field >= 0)[0]
     # min_index = valid_idx[prob_field[valid_idx].argmin()]
     # inverse_mask_2darray_inplace(resolution_map, remaining_cells)
@@ -303,6 +303,7 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None,
     # while remaining_cells.any():
         # other_min_index = valid_idx[resolution_map[remaining_cells].argmin()]
         # print(resolution_map)
+    
     collapse_probs = prob_field / c_map
     print(collapse_probs)
     max_i = np.argmax(collapse_probs)
