@@ -27,7 +27,9 @@ import numpy as np
 @njit
 def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     """ Collapses an x, y cell to a single given value-index (i).
-        Perpetuates that change to the rest of the grid by removing the value-index (i) from all other cells in the row, column, and region.
+        > This change would indicate that the cell is known to contain the value (i+1).
+        
+        Perpetuates that change by setting the value-index (i) to 0 for all other cells in the row, column, and region.
         Modifies prob_field in place.
         
     Args:
@@ -38,31 +40,34 @@ def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
     """
     prob_field[x, :, i] = 0         # Set option i to 0 for all cells in the x column.
     prob_field[:, y, i] = 0         # Set option i to 0 for all cells in the y row.
-    xx = x // 3             # Set option i to 0 for all cells in the region.
-    yy = y // 3             # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
+    
+    xx = x // 3                     # Set option i to 0 for all cells in the region.
+    yy = y // 3                     # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
     prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
+    
     prob_field[x, y, :] = 0         # Set all options for the x, y cell to 0.
-    prob_field[x, y, i] = 1         # Set the option i for the x, y cell to 1.
+    prob_field[x, y, i] = 1         # Overwrite option i for the x, y cell to 1.
     
 
 @njit
-def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray):
+def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray): # TODO: Make a version that ONLY iterates over affected cells?
     """ Collapses all cells with only one option until no more remain.
         Modifies prob_field and collapsed_cells in place.
         Returns a state code and the number of cells collapsed.
 
     Args:
-        prob_field (np.ndarray): _description_
-        collapsed_cells (np.ndarray): _description_
+        prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
+        collapsed_cells (np.ndarray): 9x9 grid tracking whether each cell has been collapsed.
 
     Returns:
         int, int: State code and number of cells collapsed.
-                    > State codes:  0 = invalid board state
-                                    1 = valid board state
+                    > State codes:  0 = unsolvable board state
+                                    1 = unsolved board state
                                     2 = solved board state
     """
-    collapse_count = 0
-    prev_count = -1
+    # TODO: Consider replacing collapse_count with a sum of collapsed_cells.
+    collapse_count = 0  # Number of cells collapsed.
+    prev_count = -1     # Used to detect when no more cells can be collapsed.
     
     while True:
         # Sum the probability field along the value axis.
@@ -132,3 +137,6 @@ def inverse_mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=
             if not mask_arr[x][y]:
                 arr[x][y] = maskval
 
+# @njit
+# def mask_2d_3d(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
+#     arr[mask_arr] = maskval
