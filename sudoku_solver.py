@@ -22,9 +22,13 @@ def naive_solve(puzzle: np.ndarray, verbose=False):
             Begins again from the beginning whenever a cell is solved.
             If all cells are checked and no more cells are solved, the puzzle is returned as is.
             
-            NOTE: This is not a very effective solver, and is included only for comparison.
-                  Most puzzles are impossible to solve with this method.
-
+            NOTE:   This is not an effective or complete solver, and is included only for comparison.
+                    naive_solve was my starting point to get a feel for the problem.
+                    Most puzzles are impossible to solve with this method.
+            
+            NOTE:   solver_utils.propagate_collapse is an optimized probability field version of this method.
+                    Naively collapsing single-option cells turned out to be a useful component in future solvers.
+    
     Args:
         puzzle (np.ndarray): A 9x9 numpy array representing a sudoku puzzle.
         verbose (bool, optional): If True, print each choice as it is made. Defaults to False.
@@ -32,7 +36,6 @@ def naive_solve(puzzle: np.ndarray, verbose=False):
     Returns:
         np.ndarray: A 9x9 numpy array representing the final state of the sudoku puzzle. Oftentimes this is not fully solved.
     """
-    
     for x, row in enumerate(puzzle):
         for y, col in enumerate(puzzle.T):
             
@@ -343,5 +346,6 @@ if __name__ == '__main__':
         
     prob_field = generate_probability_field(puzzles['evil'])
     solution, recursions, failed_recursions, collapses = collapse_solve(prob_field)
+    print('Solution:')
     print(prob_field_to_puzzle(solution))
     print(recursions, failed_recursions, collapses)
