@@ -252,8 +252,8 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     return None, recursions, failed_recursions, collapse_count
 
 
-@njit
-def collapse_solve(prob_field: np.ndarray, remaining_cells: np.ndarray = None,
+# @njit
+def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None,
                    c_map: np.ndarray = None, v_map: np.ndarray = None):
 
     # Thoughts:
@@ -269,53 +269,65 @@ def collapse_solve(prob_field: np.ndarray, remaining_cells: np.ndarray = None,
     #   If 
     #   
 
-    if remaining_cells is None: # On the first call, generate the heuristic maps.
-        remaining_cells = np.ones((9, 9))
+    if collapsed_cells is None: # On the first call, generate the heuristic maps.
+        collapsed_cells = np.zeros((9, 9), dtype=int)
         
     # DEBUG: Track metrics.
     recursions = 1          # Total recursions (including first call)
     failed_recursions = 0   # TODO: Consider tracking to max depth instead.
-    collapse_count = 0      # Total number of cells collapsed.
     
     # Sum the probability field along the value axis.
     #   The value of each cell is equal to the number of remaining options for that cell.
-    resolution_map = prob_field.sum(axis=2) # TODO: Replace resolution mapping with collapse map
-
-    # If any cell has no options, the puzzle is in a unsolvable state.
-    if not resolution_map.all():
-        return None, recursions, failed_recursions, collapse_count
+    state, collapse_count = propagate_collapse(prob_field=prob_field, collapsed_cells=collapsed_cells)
     
-    # If all cells have an option and there is one option per cell, the puzzle is solved.
-    if resolution_map.sum() == 81:
+    if state == 0:
+        return None, recursions, failed_recursions, collapse_count
+    if state == 2:
         return prob_field, recursions, failed_recursions, collapse_count
     
     # print(prob_field)
     
     
     
-    c_map, v_map = generate_heuristic_maps(prob_field)
+    c_map, w_map = generate_heuristic_maps(prob_field)
     # valid_idx = np.where(prob_field >= 0)[0]
     # min_index = valid_idx[prob_field[valid_idx].argmin()]
     # inverse_mask_2darray_inplace(resolution_map, remaining_cells)
     # valid_idx = np.where(remaining_cells)[0]
-
-    while remaining_cells:
+    
+    # remaining_cells = 1 - collapsed_cells
+    # # print(remaining_cells)
+    # while remaining_cells.any():
         # other_min_index = valid_idx[resolution_map[remaining_cells].argmin()]
         # print(resolution_map)
-        min_index = np.argmin(resolution_map)
+    collapse_probs = prob_field / c_map
+    print(collapse_probs)
+    max_i = np.argmax(collapse_probs)
+    x, y, i = np.unravel_index(max_i, collapse_probs.shape)
+    print(x, y, i)
+    print(max_i)
+    print(prob_field[x, y])
+    print(c_map[x, y, i])
+    print(collapse_probs[x, y, i])
+    print(collapsed_cells)
+
+    return prob_field, recursions, failed_recursions, collapse_count
+        
+        # min_index = np.argmin(resolution_map)
         
         # indexes = np.where(prob_field[x][y])[0]
-        x, y = min_index // 9, min_index % 9
-        if resolution_map[x, y] == 1:
-            remaining_cells[x, y] = 0
+        # x, y = min_index // 9, min_index % 9
+        # if resolution_map[x, y] == 1:
+        #     remaining_cells[x, y] = 0
         
         
-        collapse_count += 1
+        # collapse_count += 1
         
         
-        return
         
 
+    # print(min_index)
+    return prob_field, recursions, failed_recursions, collapse_count
 
 
 
