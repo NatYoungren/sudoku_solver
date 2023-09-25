@@ -5,10 +5,45 @@
 from numba import njit
 import numpy as np
 
+#   Critical functions:
+
+# collapse_probability_field:
+#   This is the heart of all my wave-function-collapse inspired solvers.
+#   If a cell is collapsed to a single value, all other cells in the row, column, and region are updated to remove that value.
+#   Whenever a probability grid is modified (at least when collapsing cells to a known value), this function should be handling that change.
+#   Modifications occur in-place, so make a copy beforehand if you want to preserve the original state (i.e. when recursing).
+
+# propagate_collapse:
+#   This function is used to naively resolve puzzles by collapsing all cells with only one option until no more remain.
+#   It also returns a state code indicating whether the puzzle is solved, unsolved, or unsolvable.
+#   Whenever a probability field is modified, this function can be called to propagate that change (provided that at least one cell reached a known state).
+#   The collapsed_cells parameter is used to avoid collapsing a cell multiple times. Both collapsed_cells and prob_field are modified in-place.
+
 
 # # # # # # #
 # Solver Utilities
 #
+
+@njit
+def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
+    """ Collapses an x, y cell to a single given value-index (i).
+        Perpetuates that change to the rest of the grid by removing the value-index (i) from all other cells in the row, column, and region.
+        Modifies prob_field in place.
+        
+    Args:
+        prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
+        x (int): X coordinate of the cell to collapse.
+        y (int): Y coordinate of the cell to collapse.
+        i (int): Index of the value to collapse to. (0-8)
+    """
+    prob_field[x, :, i] = 0         # Set option i to 0 for all cells in the x column.
+    prob_field[:, y, i] = 0         # Set option i to 0 for all cells in the y row.
+    xx = x // 3             # Set option i to 0 for all cells in the region.
+    yy = y // 3             # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
+    prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
+    prob_field[x, y, :] = 0         # Set all options for the x, y cell to 0.
+    prob_field[x, y, i] = 1         # Set the option i for the x, y cell to 1.
+    
 
 @njit
 def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray):
@@ -69,27 +104,6 @@ def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray):
         
     return 0, collapse_count
 
-
-@njit
-def collapse_probability_field(prob_field: np.ndarray, x: int, y: int, i: int):
-    """ Collapses an x, y cell to a single given value-index (i).
-        Perpetuates that change to the rest of the grid by removing the value-index (i) from all other cells in the row, column, and region.
-        Modifies prob_field in place.
-        
-    Args:
-        prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
-        x (int): X coordinate of the cell to collapse.
-        y (int): Y coordinate of the cell to collapse.
-        i (int): Index of the value to collapse to. (0-8)
-    """
-    prob_field[x, :, i] = 0         # Set option i to 0 for all cells in the x column.
-    prob_field[:, y, i] = 0         # Set option i to 0 for all cells in the y row.
-    xx = x // 3             # Set option i to 0 for all cells in the region.
-    yy = y // 3             # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
-    prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i] = 0
-    prob_field[x, y, :] = 0         # Set all options for the x, y cell to 0.
-    prob_field[x, y, i] = 1         # Set the option i for the x, y cell to 1.
-    
 
 @njit # TODO: Look for a more efficient njit-compatible method
 def mask_2darray(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
