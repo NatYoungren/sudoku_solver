@@ -13,8 +13,7 @@ import numpy as np
 
 @njit
 def generate_unified_heuristic_map(prob_field: np.ndarray, collapsed_cells: np.ndarray):
-    # NOTE: This seems to save negligible/no time compred to generate_heuristic_maps.
-    # NOTE: The 
+    # NOTE: This seems to save negligible/no time compared to generate_heuristic_maps.
     row_sums, col_sums, region_sums = get_sums(prob_field)
     
     # Max collapse value = 9
