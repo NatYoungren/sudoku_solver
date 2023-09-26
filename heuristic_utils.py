@@ -137,3 +137,12 @@ def evaluate_region_value(prob_field: np.ndarray, x: int, y: int, i: int):
     yy = y // 3
     return prob_field[xx*3:xx*3+3, yy*3:yy*3+3, i].sum() - prob_field[x, y, i]
 
+if __name__ == '__main__':
+    import timeit
+    iterations = 1000
+    print(' > Precompile njit')
+    generate_unified_heuristic_map(np.zeros((9, 9, 9), dtype=np.uint8), np.zeros((9, 9), dtype=np.uint8))
+    
+    t1 = timeit.timeit(lambda: generate_unified_heuristic_map(np.zeros((9, 9, 9), dtype=np.uint8), np.zeros((9, 9), dtype=np.uint8)), number=iterations)
+    
+    print(f'Time: {t1/iterations:0.7f}')
