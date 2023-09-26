@@ -34,6 +34,107 @@ def generate_unified_heuristic_map(prob_field: np.ndarray, collapsed_cells: np.n
                 
     return heuristic_map # TODO: Revisit these names, swap them?
 
+
+@njit # NOTE: ATTEMPT TO SPEED UP UNIFIED HEURISTIC MAP
+def generate_heuristic_map(prob_field: np.ndarray, collapsed_cells: np.ndarray):
+    
+    mask_arr = np.logical_or((1 - prob_field.flatten()), collapsed_cells.repeat(9)).reshape(9, 9, 9)
+    
+    sums_map = np.full((9, 9, 9, 3), fill_value=100, dtype=np.uint8)
+    # sums_map = mask_arr.repeat(3).reshape((9, 9, 9, 3))
+    # sums_map = np.empty((9, 9, 9, 3), dtype=np.uint8)
+    row_sums, col_sums, region_sums = get_sums(prob_field) # NOTE: How few possibilities does it take to make this not worth doing?
+
+    for k in range(9):
+        sums_map[:, k, :, 0] = np.multiply(row_sums[k, :], mask_arr[:, k, :])
+        sums_map[k, :, :, 1] = np.multiply(col_sums[k, :], mask_arr[k, :, :])
+        sums_map[(k//3)*3:(k//3)*3+3, (k%3)*3:(k%3)*3+3, :, 2] *= np.multiply(region_sums[k, :], mask_arr[(k//3)*3:(k//3)*3+3, (k%3)*3:(k%3)*3+3, :,])
+    
+    print(sums_map)
+    return sums_map
+
+    heuristic_map = np.multiply((1 - mask_arr), np.add(np.multiply(sums_map[:, 0], 10), sums_map[:, 2]))
+    
+    # print(mask_arr.shape, heuristic_map.shape, sums_map.shape)
+    
+    # np.multiply((1 - mask_arr), (np_min_a0_3d(np.min, 0, sums_map) * 10 + np_apply_along_axis(np.max, 0, sums_map)), out=heuristic_map, casting='unsafe')
+    heuristic_map = np.add(heuristic_map, mask_arr * 100)
+    
+
+    
+    # NOTE: Slower than get_sums
+    # sums_map = np.empty((9, 9, 9, 3), dtype=np.uint8)
+    # for k in range(9): # TODO: Swap
+    #     sums_map[:, k, :, 0] = prob_field[:, k, :].sum(axis=0)
+    #     sums_map[k, :, :, 1] = prob_field[k, :, :].sum(axis=0)
+    #     sums_map[(k//3)*3:(k//3)*3+3, (k%3)*3:(k%3)*3+3, :, 2] = prob_field[(k//3)*3:(k//3)*3+3, (k%3)*3:(k%3)*3+3, :].sum(axis=0).sum(axis=0)
+    
+        
+    # heuristic_map = np.full((9, 9, 9), fill_value=100, dtype=np.uint8)
+    # # heuristic_map.fill(100)
+    # for x in range(9):
+    #     for y in range(9):
+    #         if collapsed_cells[x, y]:
+    #             continue
+    #         # r = (x//3)*3+y//3
+    #         for i in range(9):
+    #             if prob_field[x, y, i]:
+    #                 heuristic_map[x, y, i] = min(sums_map[x, y, i, :]) * 10 + max(sums_map[x, y, i, :])
+                
+    # return heuristic_map # TODO: Revisit these names, swap them?
+
+    
+    # Make a mask which == True for all the indexes we do not want to select in the heuristic map
+    #   These are all indexes which are either not marked as possible in prob field or are in a collapsed cells.
+    
+    print(mask_arr)
+    print(mask_arr.shape)
+    
+    # print(np_min_a0_4d(sums_map))
+    # print(np_max_a0_4d(sums_map))
+    # print(np_min_a0_4d(sums_map) * 10 + np_max_a0_4d(sums_map))
+    # print(mask_arr.dtype)
+    
+    # # print(sums_map.shape)
+    # sums_map = sums_map.reshape((-1, 3)) # Test w/ flatten
+    # # print(sums_map.shape)
+    # for i in range(729):
+    #     sums_map[i,:] = np.sort(sums_map[i, :])# = np.sort(sums_map[i, :])
+        
+    # print('sorted')
+    # print(sums_map.shape)
+    # print(mask_arr.shape)
+    
+    return heuristic_map
+
+# @njit
+# def compute_heuristic(arr):
+    
+
+@njit
+def np_min_a0_4d(arr): # Get min along axis 0 of a 4d array. # NOTE: Njit workaround
+    s = arr.shape
+    out_arr = np.empty(s[1:], dtype=arr.dtype)
+    
+    for i1 in range(s[1]):
+        for i2 in range(s[2]):
+            for i3 in range(s[3]):
+                out_arr[i1, i2, i3] = np.min(arr[:, i1, i2, i3])
+            
+    return out_arr
+
+@njit
+def np_max_a0_4d(arr): # Get max along axis 0 of a 4d array. # NOTE: Njit workaround
+    s = arr.shape
+    out_arr = np.empty(s[1:], dtype=arr.dtype)
+    
+    for i1 in range(s[1]):
+        for i2 in range(s[2]):
+            for i3 in range(s[3]):
+                out_arr[i1, i2, i3] = np.min(arr[:, i1, i2, i3])
+            
+    return out_arr   
+
 @njit
 def generate_heuristic_maps(prob_field: np.ndarray, collapsed_cells: np.ndarray):
     """ Generates heuristics for each cell in the probability field.
@@ -90,6 +191,46 @@ def get_sums(prob_field: np.ndarray):
     
     return row_sums, col_sums, region_sums
 
+# @njit
+# def get_sums2(prob_field: np.ndarray):
+#     """ Returns the row, column, and region sums for each index in for a given probability field as a single array.
+
+#     Args:
+#         prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
+
+#     Returns:
+#         np.ndarray: Returns a 9x9x9x3 array of summed values. [:, :, :, 0] is row sums, [:, :, :, 1] is column sums, [:, :, :, 2] is region sums.
+#     """
+#     sums_map = np.empty((9, 9, 9, 3), dtype=np.uint8)
+#     for k in range(9): # TODO: Swap
+#         sums_map[:, k, :, 0] = prob_field[:, k, :].sum(axis=0)
+#         sums_map[k, :, :, 1] = prob_field[k, :, :].sum(axis=0)
+#         sums_map[(k//3)*3:(k//3)*3+3, (k%3)*3:(k%3)*3+3, :, 2] = prob_field[(k//3)*3:(k//3)*3+3, (k%3)*3:(k%3)*3+3, :].sum(axis=0).sum(axis=0)
+#     return sums_map
+
+@njit # TODO: Currently unused, remove?
+def collapse_heuristic_map(h_map: np.ndarray, x: int, y: int, i: int, fillval=10): # TODO: Hardcode fillval?
+    """ Removes a given value-index (i) from the heuristic map for all affected cells.
+        Removes all value-indices from the heuristic map for the affected cell.
+        
+        Perpetuates that change by setting the value-index (i) to fillval for all other cells in the row, column, and region.
+        Heuristic map in-place.
+        
+    Args:
+        h_map (np.ndarray): 9x9x9 grid tracking the cell heuristics.
+        x (int): X coordinate of the cell to collapse.
+        y (int): Y coordinate of the cell to collapse.
+        i (int): Index of the value to collapse to. (0-8)
+    """
+    h_map[x, :, i] = fillval         # Set option i to 0 for all cells in the x column.
+    h_map[:, y, i] = fillval         # Set option i to 0 for all cells in the y row.
+    
+    xx = x // 3                     # Set option i to 0 for all cells in the region.
+    yy = y // 3                     # (xx, yy) is the top-left corner of the 3x3 region containing x, y.
+    h_map[xx*3:xx*3+3, yy*3:yy*3+3, i] = fillval
+    
+    h_map[x, y, :] = fillval         # Set all options for the x, y cell to 0.
+
 
 # Low collapse value means the choice is less likely to lead to a broken board state.
 @njit
@@ -138,10 +279,44 @@ def evaluate_region_value(prob_field: np.ndarray, x: int, y: int, i: int):
 
 if __name__ == '__main__':
     import timeit
+    import time
+    import json
+    from setup_utils import generate_probability_field
     iterations = 1000
-    print(' > Precompile njit')
-    generate_unified_heuristic_map(np.zeros((9, 9, 9), dtype=np.uint8), np.zeros((9, 9), dtype=np.uint8))
+    PUZZLE_FILE = 'sudoku_puzzle.json'
+    with open(PUZZLE_FILE) as f:
+        puzzles = json.load(f)
     
-    t1 = timeit.timeit(lambda: generate_unified_heuristic_map(np.zeros((9, 9, 9), dtype=np.uint8), np.zeros((9, 9), dtype=np.uint8)), number=iterations)
     
-    print(f'Time: {t1/iterations:0.7f}')
+    
+    
+    puzzle = np.array(puzzles['medium'])
+    # print(puzzle)
+    prob_field = generate_probability_field(puzzle)
+    collapsed_cells = np.zeros((9, 9), dtype=np.uint8)
+    collapsed_cells[0, 0] = 1
+    collapsed_cells[5, 4] = 1
+    
+    # # Unified Heuristic Map
+    # print(' > Precompiling njit...')
+    # h_map1 = generate_unified_heuristic_map(prob_field, collapsed_cells)
+
+    # print(' > Running w/ timeit...')
+    # t1 = timeit.timeit(lambda: generate_unified_heuristic_map(prob_field, collapsed_cells), number=iterations)
+    # print(f'Time: {t1/iterations:0.7f}')
+    
+    
+    # New Heuristic Map
+    print(' > Precompiling njit...')
+    h_map2 = generate_heuristic_map(prob_field=prob_field, collapsed_cells=collapsed_cells)
+
+    print(' > Running w/ timeit...')
+    t2 = timeit.timeit(lambda: generate_heuristic_map(prob_field=prob_field, collapsed_cells=collapsed_cells), number=iterations)
+    print(f'Time: {t2/iterations:0.7f}')
+    
+    
+    # print(h_map1)
+    # print(h_map2)
+    
+    # print(h_map1 == h_map2)
+    # print((h_map1 == h_map2).all())
