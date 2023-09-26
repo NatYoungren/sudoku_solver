@@ -18,7 +18,7 @@ def generate_heuristic_maps(prob_field: np.ndarray, collapsed_cells: np.ndarray)
     Args:
         prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
         collapsed_cells (np.ndarray): 9x9 grid tracking whether each cell has been collapsed.
-                                      Collapsed cells are left empty (0) in the heuristic maps.
+                                      Collapsed cells default to 10 in the heuristic maps.
 
     Returns:
         collapse_map (np.ndarray), weight_map (np.ndarray): 9x9x9 heuristic grids.
@@ -27,17 +27,19 @@ def generate_heuristic_maps(prob_field: np.ndarray, collapsed_cells: np.ndarray)
     """
     row_sums, col_sums, region_sums = get_sums(prob_field)
     
-    collapse_map = np.zeros((9, 9, 9), dtype=np.uint8)
-    weight_map = np.zeros((9, 9, 9), dtype=np.uint8)
+    collapse_map = np.full((9, 9, 9), fill_value=10, dtype=np.uint8)
+    weight_map = np.full((9, 9, 9), fill_value=10, dtype=np.uint8) # TODO: Consider changing fill to 1 or 0.
     
     for x in range(9):
         for y in range(9):
             if collapsed_cells[x, y]:
                 continue
+            r = (x//3)*3+y//3
             for i in range(9):
-                # NOTE: Consider using sum?
-                weight_map[x, y, i] = max(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
-                collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[(x//3)*3+y//3, i])
+                if prob_field[x, y, i]:
+                    # NOTE: Consider using sum?
+                    weight_map[x, y, i] = max(col_sums[x, i], row_sums[y, i], region_sums[r, i])
+                    collapse_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[r, i])
                 
     return collapse_map, weight_map # TODO: Revisit these names, swap them?
 
