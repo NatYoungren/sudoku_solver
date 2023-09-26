@@ -8,7 +8,7 @@ import timeit
 import json
 
 from setup_utils import generate_probability_field, prob_field_to_puzzle, validate_solution
-from sudoku_solver import collapse_solve, masked_solve, recursive_solve, ripple_solve
+from sudoku_solver import collapse_solve, masked_solve, recursive_solve, ripple_solve, simpler_collapse_solve
 
 np.set_printoptions(linewidth=np.inf)
 
@@ -16,7 +16,7 @@ PUZZLE_FILE = 'sudoku_puzzle.json'
 ITERATIONS = 1000
 PREP_TIMEIT = True
 
-VERBOSE_LOOP = True
+VERBOSE_LOOP = False
 VERBOSE_END = True
 
 
@@ -51,11 +51,11 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
 
             # Solve once manually for solution and metrics
             start_time = time.time()
-            solution, recursions[name], failed_recursions[name], collapses[name] = solver(prob_field)
+            solution, recursions[name], failed_recursions[name], collapses[name] = solver(prob_field.copy())
             end_time = time.time()
             
             # Solve repeatedly for average time
-            t = timeit.timeit(lambda: solver(prob_field), number=iterations)
+            t = timeit.timeit(lambda: solver(prob_field.copy()), number=iterations)
             times[name] = t / iterations
             
             # Validate solution
@@ -78,6 +78,7 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
     
     # Print overall results
     if verbose_end:
+        
         # Iterate through all evaluated solvers
         for solver_name, data in stored_data.items():
             print(f'\n\n {iterations} iterations of {solver_name}:\n')
@@ -100,17 +101,11 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
 
 
 if __name__ == '__main__':
-    TEST_FUNCS = [ripple_solve, masked_solve, recursive_solve]
+    TEST_FUNCS = [collapse_solve, simpler_collapse_solve]
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
-        puzzles.pop('ai_escargot', None)
-        
-    # prob_field = generate_probability_field(puzzles['evil'])
-    # solution, recursions, failed_recursions, collapses = collapse_solve(prob_field)
-    # print(prob_field_to_puzzle(solution))
-    # print(recursions, failed_recursions, collapses)
-    # quit()
+        # puzzles.pop('ai_escargot', None)
     
     if PREP_TIMEIT:
         # Presolve impossible puzzle:
