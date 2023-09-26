@@ -12,6 +12,30 @@ import numpy as np
 #
 
 @njit
+def generate_unified_heuristic_map(prob_field: np.ndarray, collapsed_cells: np.ndarray):
+    # NOTE: This seems to save negligible/no time compred to generate_heuristic_maps.
+    # NOTE: The 
+    row_sums, col_sums, region_sums = get_sums(prob_field)
+    
+    # Max collapse value = 9
+    # Max weight value = 9
+    # Heuristic value = collapse value * 10 + weight value
+    # Max heuristic value = 99
+    # Default heuristic value = 100
+    heuristic_map = np.full((9, 9, 9), fill_value=100, dtype=np.uint8)
+    # heuristic_map.fill(100)
+    for x in range(9):
+        for y in range(9):
+            if collapsed_cells[x, y]:
+                continue
+            r = (x//3)*3+y//3
+            for i in range(9):
+                if prob_field[x, y, i]:
+                    heuristic_map[x, y, i] = min(col_sums[x, i], row_sums[y, i], region_sums[r, i]) * 10 + max(col_sums[x, i], row_sums[y, i], region_sums[r, i])
+                
+    return heuristic_map # TODO: Revisit these names, swap them?
+
+@njit
 def generate_heuristic_maps(prob_field: np.ndarray, collapsed_cells: np.ndarray):
     """ Generates heuristics for each cell in the probability field.
 
