@@ -8,7 +8,7 @@ import json
 
 from setup_utils import get_region, get_options, generate_probability_field, prob_field_to_puzzle, validate_solution
 from solver_utils import collapse_probability_field, propagate_collapse, mask_2darray, mask_2darray_inplace, inverse_mask_2darray_inplace
-from heuristic_utils import generate_heuristic_maps, collapse_value, collapse_heuristic_map, generate_unified_heuristic_map
+from heuristic_utils import generate_heuristic_maps, collapse_value, generate_unified_heuristic_map
 
 # # # # # # #
 # Solvers
