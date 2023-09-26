@@ -81,7 +81,7 @@ def get_sums(prob_field: np.ndarray):
     """
     row_sums = prob_field.sum(axis=0)
     col_sums = prob_field.sum(axis=1)
-    region_sums = np.zeros((9, 9))
+    region_sums = np.zeros((9, 9), dtype=np.uint8)
     
     # TODO: Make this more efficient?
     for x in range(3):
