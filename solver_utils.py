@@ -62,8 +62,8 @@ def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray): # T
     Returns:
         int, int: State code and number of cells collapsed.
                     > State codes:  0 = unsolvable board state
-                                    1 = unsolved board state
-                                    2 = solved board state
+                                    1 = solved board state
+                                    2 = unsolved board state
     """
     # TODO: Consider replacing collapse_count with a sum of collapsed_cells.
     collapse_count = 0  # Number of cells collapsed.
@@ -79,7 +79,7 @@ def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray): # T
 
         # If there is one choice per cell, return the solved probability field.
         if resolution_map.sum() == 81:
-            return 2, collapse_count
+            return 1, collapse_count
 
         # If the puzzle has been altered, look for new cells that can be collapsed.
         if prev_count != collapse_count: 
@@ -105,7 +105,7 @@ def propagate_collapse(prob_field: np.ndarray, collapsed_cells: np.ndarray): # T
                 # Mark the cell as collapsed.
                 collapsed_cells[x][y] = 1
         else:
-            return 1, collapse_count
+            return 2, collapse_count
         
     return 0, collapse_count
 
