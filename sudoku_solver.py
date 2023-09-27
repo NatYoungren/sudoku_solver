@@ -84,15 +84,16 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
     
-    # DEBUG: Track metrics.
-    recursions = 1          # Total recursions (including first call)
-    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
-        
+    # NOTE: These are purely performance metrics.
+    recursions = 1          # Total recursions, including initial solver call. (min 1)
+    failed_recursions = 0   # Total recursions that failed to find a solution. (min 0)
+    # collapse_count is initialized below.
+    
     # Collapse all cells with only one option until no more remain, or the puzzle is unsolvable.
     state, collapse_count = propagate_collapse(prob_field=prob_field, collapsed_cells=collapsed_cells)
     
+    # Return if the puzzle is solved or unsolvable.
     if state != 2:
-        # Return if the puzzle is solved or unsolvable.
         r = [None, prob_field][state]
         return r, recursions, failed_recursions, collapse_count
     
@@ -130,6 +131,7 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     # If no option lead to a solution, the puzzle is unsolvable.
     return None, recursions, failed_recursions, collapse_count
 
+
 #
 # Recursive Solver w/ Masking
 # Attempt at using array masking to simplify cell selection.
@@ -138,9 +140,9 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
     
-    # DEBUG: Track metrics.
-    recursions = 1          # Total recursions (including first call)
-    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
+    # NOTE: These are purely performance metrics.
+    recursions = 1          # Total recursions, including initial solver call. (min 1)
+    failed_recursions = 0   # Total recursions that failed to find a solution. (min 0)
     collapse_count = 0      # Total number of cells collapsed.
         
     # Sum the probability field along the value axis.
@@ -175,19 +177,21 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     if resolution_map.sum() == 81: # TODO: Should this be reorganized? Reintroduce the while True?
         return prob_field, recursions, failed_recursions, collapse_count
     
-    # The cell with the least options still has > 1 options, so we recurse for each option.
-    collapsed_cells[x, y] = 1
+    # The cell with the least options still has > 1 options, identify those options.
     indexes = np.where(prob_field[x][y])[0]
+    collapsed_cells[x, y] = 1
     
     # Calculate the collapse value for each option.
     c_values = [collapse_value(prob_field, x, y, i) for i in indexes]
     
-    # Iterate over the options, sorted by lowest collapse value.    
+    # Recurse over the options, sorted by lowest collapse value.    
     for i in [x for _, x in sorted(zip(c_values, indexes), reverse=False)]:
         
-        # Result, recursion_count, failed_recursions
+        # Pass copies of the probability field and collapsed cells when recursing.
         pf = prob_field.copy()
         collapse_probability_field(pf, x, y, i)
+        
+        # Result, recursion_count, failed_recursions, collapse_count
         r, _rs, _frs, _c = masked_solve(pf, collapsed_cells.copy())
         
         recursions += _rs           # Update the tracked metrics.
@@ -200,8 +204,8 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
                         
         # If no solution is found, increment the failed recursion count.
         failed_recursions += 1
-            
-    # If no option lead to a solution, the puzzle is unsolvable.
+    
+    # If any cell was fully explored without success, the puzzle is unsolvable.
     return None, recursions, failed_recursions, collapse_count
 
 
