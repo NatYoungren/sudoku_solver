@@ -40,21 +40,24 @@ def generate_probability_field(puzzle: np.ndarray, dtype=np.uint8):
 
 
 def prob_field_to_puzzle(prob_field: np.ndarray, dtype=np.uint8):
-    """ Converts a probability field into a puzzle.
+    """ Converts a 9x9x9 probability field into a 9x9 puzzle.
 
     Args:
         prob_field (np.ndarray): 9x9x9 probability field.
         dtype (np.dtype): Data type of the output puzzle. (Default: np.uint8
 
     Returns:
-        np.array: 9x9 numpy array holding cell values.
-                    0 represents an unsolved cell.
-                    -1 represents an impossible cell.
+        np.array, optional: 9x9 numpy array holding cell values. Returns None if the prob_field was None.
+                            0 represents an unsolved cell.
+                            -1 represents an unsolvable cell.
     """
+    if prob_field is None:
+        return None
+    
     out_puzzle = np.zeros((9, 9), dtype=dtype)
     for x, _ in enumerate(prob_field):
         for y, _ in enumerate(prob_field.T):
-            s = prob_field[x][y].sum()
+            s = np.count_nonzero(prob_field[x][y])
             if s == 1:
                 out_puzzle[x][y] = np.argmax(prob_field[x][y]) + 1
             elif not s:
