@@ -11,6 +11,40 @@ import numpy as np
 # NOTE: These utilities are used to weight choices by their relationships with other cells.
 #
 
+
+@njit
+def update_heuristic_probability_field(prob_field: np.ndarray):
+    """ Generates a heuristic map for each cell in the probability field.
+
+    Args:
+        prob_field (np.ndarray): 9x9x9 grid tracking the possibility of each cell containing each value.
+        collapsed_cells (np.ndarray): 9x9 grid tracking whether each cell has been collapsed.
+
+    Returns:
+        np.ndarray: 9x9x9 heuristic grid, each heuristic value between 0 and 100.
+                    The heuristic value of each value-index is calculated as follows:
+                        > 100 - 10 * min(collapse_sums) + max(collapse_sums) 
+                        
+                          collapse_sums are the numbers of possible cells for one value-index in that cell's row/column/region.
+                          collapse_sums range between 0 and 9, so the heuristic value ranges between 100 and 1.
+                          Note that 100 sums are indicative of invalid board states.
+                          
+                        Any value-index which cannot be considered defaults to a heuristic value of 0.
+                        
+
+    """
+    prob_field = np.where(prob_field != 0, np.uint8(1), np.uint8(0))
+    row_sums, col_sums, region_sums = get_sums(prob_field)
+
+    for x in range(9):
+        for y in range(9):
+            r = (x//3)*3+y//3
+            for i in range(9):
+                prob_field[x, y, i] *= 100 - (min(col_sums[x, i], row_sums[y, i], region_sums[r, i]) * 10 + max(col_sums[x, i], row_sums[y, i], region_sums[r, i]))
+                
+    return prob_field
+
+
 @njit
 def generate_unified_heuristic_map(prob_field: np.ndarray, collapsed_cells: np.ndarray):
     """ Generates a heuristic map for each cell in the probability field.
