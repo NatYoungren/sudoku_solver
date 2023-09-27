@@ -137,6 +137,4 @@ def inverse_mask_2darray_inplace(arr: np.ndarray, mask_arr: np.ndarray, maskval=
             if not mask_arr[x][y]:
                 arr[x][y] = maskval
 
-# @njit
-# def mask_2d_3d(arr: np.ndarray, mask_arr: np.ndarray, maskval=10):
-#     arr[mask_arr] = maskval
+
