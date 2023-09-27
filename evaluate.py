@@ -12,12 +12,7 @@ from sudoku_solver import collapse_solve, masked_solve, recursive_solve, ripple_
 
 np.set_printoptions(linewidth=np.inf)
 
-PUZZLE_FILE = 'sudoku_puzzle.json'
-ITERATIONS = 1000
-PREP_TIMEIT = True
 
-VERBOSE_LOOP = False
-VERBOSE_END = True
 
 
 # # # # # # #
@@ -101,7 +96,15 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
 
 
 if __name__ == '__main__':
-    TEST_FUNCS = [collapse_solve, simpler_collapse_solve]
+    PRECOMPILE = True
+
+    PUZZLE_FILE = 'sudoku_puzzle.json'
+    
+    VERBOSE_LOOP = False
+    VERBOSE_END = True
+    ITERATIONS = 1000
+    
+    TEST_FUNCS = [ripple_solve, recursive_solve, masked_solve, collapse_solve, simpler_collapse_solve, heuristic_solve]
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
