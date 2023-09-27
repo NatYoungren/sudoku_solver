@@ -210,28 +210,32 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
 
 #
-# Recursive Solver
-# Essentially ripple solve, but without naive collapse propagation.
+# Fully Recursive Solver
+# Essentially masked solve, but without any collapse propagation.
+# Each cell collapse triggers a recursion, this is slow and excessive but robust.
 @njit
 def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
         
-    # DEBUG: Track metrics.
-    recursions = 1          # Total recursions (including first call)
-    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
+    # NOTE: These are purely performance metrics.
+    recursions = 1          # Total recursions, including initial solver call. (min 1)
+    failed_recursions = 0   # Total recursions that failed to find a solution. (min 0)
     collapse_count = 0      # Total number of cells collapsed.
     
-    # Sum the probability field along the value axis.
+    # Sum the probability field along the value axis (into a 9x9 array).
     #   The value of each cell is equal to the number of remaining options for that cell.
-    resolution_map = prob_field.sum(axis=2) # TODO: Replace resolution mapping with collapse map
+    resolution_map = prob_field.sum(axis=2)
 
+    # Abort if any cells are unsolvable.
     if not resolution_map.all():
         return None, recursions, failed_recursions, collapse_count
     
+    # Return solution if all cells are solved.
     if resolution_map.sum() == 81:
         return prob_field, recursions, failed_recursions, collapse_count
     
+    # Overwrite any previously collapsed cells with a high value (10).
     mask_2darray_inplace(resolution_map, collapsed_cells)
 
     # Find the cell with the lowest number of options (that has not been previously collapsed).
@@ -239,25 +243,34 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     x, y = c // 9, c % 9
     collapsed_cells[x, y] = 1
     
-    # NOTE: This performs collapse_value calculation even when unneeded, replace with collapse_mapping
+    # Determine the remaining options for that cell.
     indexes = np.where(prob_field[x][y])[0]
     
     # If that cell has multiple options, sort them by collapse value.
     if len(indexes) < 1:
         indexes[:] = [x for _, x in sorted(zip([collapse_value(prob_field, x, y, i) for i in indexes], indexes), reverse=False)]
     
+    # Recurse over each option.
+    for i in indexes:
         
-        # Result, recursion_count, failed_recursions
+        # Pass copies of the probability field and collapsed cells when recursing.
         pf = prob_field.copy()
         collapse_probability_field(pf, x, y, i)
+        
+        # Result, recursion_count, failed_recursions, collapse_count
         r, _rs, _frs, _c = recursive_solve(pf, collapsed_cells.copy())
         
-        recursions += _rs           # Update the tracked metrics.
+        recursions += _rs           # Update metrics.
         failed_recursions += _frs   #
         collapse_count += _c + 1    #
+        
+        # If a solution was found, return it.
         if r is not None:
             return r,  recursions, failed_recursions, collapse_count
+
+        failed_recursions += 1
         
+    # If any cell was fully explored without success, the puzzle is unsolvable.
     return None, recursions, failed_recursions, collapse_count
 
 
