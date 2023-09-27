@@ -8,7 +8,7 @@ import json
 
 from setup_utils import get_region, get_options, generate_probability_field, prob_field_to_puzzle, validate_solution
 from solver_utils import collapse_probability_field, propagate_collapse, mask_2darray, mask_2darray_inplace, inverse_mask_2darray_inplace
-from heuristic_utils import generate_heuristic_maps, collapse_value, generate_unified_heuristic_map
+from heuristic_utils import generate_heuristic_maps, collapse_value, generate_unified_heuristic_map, update_heuristic_probability_field
 
 # # # # # # #
 # Solvers
@@ -399,9 +399,86 @@ def simpler_collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray =
             return r, recursions, failed_recursions, collapse_count
         
         failed_recursions += 1
-        prob_field[x, y, i] = 0
 
+@njit
+def heuristic_solve(prob_field: np.ndarray, remaining_options: np.ndarray = None):
+    # Remaining options is used to mask the probability field.
+    # It is an inverted version of collapsed_cells with a value axis, making it 9x9x9.
+    # TODO: Consider swapping back to a 9x9 array.
+    if remaining_options is None:
+        remaining_options = np.ones((9, 9, 9), dtype=np.bool_)
+        
+    # NOTE: These are purely performance metrics.
+    recursions = 1          # Total recursions, including initial solver call. (min 1)
+    failed_recursions = 0   # Total recursions that failed to find a solution. (min 0)
+    collapse_count = 0      # Total number of cells collapsed.
+    
+    # While there are still cells with more than one option (NOTE: verifying that all cells have options occurs inside).
+    while np.count_nonzero(prob_field) > 81:
+        
+        # TODO: Propagate collapse to remove single-option cells. (Inside update_h_p_f?)
 
+        # Fill prob_field with heuristic values.
+        #   H = 100 - ((C * 10) + W)
+        #      Default value of non-option cells is 0.
+        #   Where:
+        #       C = Minimum number of competing cells for that option in a row/column/region.
+        #       W = Maximum number of competing cells for that option in a row/column/region.
+        prob_field = update_heuristic_probability_field(prob_field)
+        
+        # Mask the probability field to only the remaining cells.
+        h_map = np.multiply(prob_field, remaining_options)
+        
+        # Identify index of maximum value in heuristic map.
+        index = np.argmax(h_map)
+        x = index // 81
+        y = (index % 81) // 9
+        i = index % 9
+        
+        # Solve all trivial cases where H > 80 (C = 1), without recursion.
+        if h_map[x, y, i] > 80:
+            for x, y, i in np.argwhere(h_map > 80):
+                
+                # If any cell is being collapsed twice in one pass, the puzzle is unsolvable.
+                if not remaining_options[x, y, i]:
+                    return None, recursions, failed_recursions, collapse_count
+                
+                collapse_probability_field(prob_field, x, y, i)
+                remaining_options[x, y, :] = 0
+                collapse_count += 1
+            
+            # If any cell has no options, the puzzle is unsolvable.
+            if not prob_field.sum(axis=2).all():
+                return None, recursions, failed_recursions, collapse_count
+            
+        # Collapse the cell option and recurse.
+        else:
+            pf = prob_field.copy()
+            collapse_probability_field(pf, x, y, i)
+            ro = remaining_options.copy()
+            ro[x, y, :] = 1
+            r, _rs, _frs, _c = heuristic_solve(pf, ro)
+            
+            recursions += _rs           # Update the tracked metrics.
+            failed_recursions += _frs   #
+            collapse_count += _c + 1    #
+            
+            # If a solution was found, return it.
+            if r is not None:
+                return r, recursions, failed_recursions, collapse_count
+            
+            # If the recursion failed to return a solution, remove that option from the prob_field.
+            prob_field[x, y, i] = 0
+            failed_recursions += 1
+            
+            # If the updated cell has no options, the puzzle is unsolvable.
+            if not np.count_nonzero(prob_field[x, y, :]):
+                return None, recursions, failed_recursions, collapse_count
+    
+    # If all cells have been collapsed, the puzzle is solved.
+    return prob_field, recursions, failed_recursions, collapse_count
+        
+        
 if __name__ == '__main__':
     import time
     np.set_printoptions(linewidth=np.inf)
