@@ -56,10 +56,9 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
             # Validate solution
             solved_puzzle = prob_field_to_puzzle(solution)
             was_correct[name] = validate_solution(puzzle, solved_puzzle)
-            
+
             # Print puzzle results
             if verbose_loop:
-                solved_puzzle = solved_puzzle
                 unsolved_nodes = np.count_nonzero(solved_puzzle == 0)
                 print(solved_puzzle)
                 print(f'Average time: {times[name]:0.7f} seconds.')
@@ -69,6 +68,7 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
                     for line in was_correct[name][1]:
                         print('>', line)
                         
+        # Save results of this solver for final summary
         stored_data[solver.__name__] = (times, recursions, failed_recursions, collapses, was_correct)
     
     # Print overall results
