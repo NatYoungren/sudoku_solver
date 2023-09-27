@@ -274,6 +274,8 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     return None, recursions, failed_recursions, collapse_count
 
 
+#
+# 
 @njit
 def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
@@ -290,49 +292,55 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     #   If 
     #   
 
-    if collapsed_cells is None: # On the first call, generate the heuristic maps.
+    if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
     
         
-    # DEBUG: Track metrics.
-    recursions = 1          # Total recursions (including first call)
-    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
-    collapse_count = 0
+    # NOTE: These are purely performance metrics.
+    recursions = 1          # Total recursions, including initial solver call. (min 1)
+    failed_recursions = 0   # Total recursions that failed to find a solution. (min 0)
+    collapse_count = 0      # Total number of cells collapsed.
 
     while True:
+        # Collapse all cells with only one option until no more remain, or the puzzle is unsolvable.
         state, _c = propagate_collapse(prob_field=prob_field, collapsed_cells=collapsed_cells)
-        
         collapse_count += _c
+        
+        # Return if the puzzle is solved or unsolvable.
         if state != 2:
-            # Return if the puzzle is solved or unsolvable.
             r = [None, prob_field][state]
             return r, recursions, failed_recursions, collapse_count
-    
-    
-        
+
+        # Generate 9x9x9 heuristic maps.
+        #   C = Minimum number of competing cells for that option in a row/column/region.
+        #   W = Maximum number of competing cells for that option in a row/column/region.
+        #       Default value of non-option cells is 10.
         c_map, w_map = generate_heuristic_maps(prob_field, collapsed_cells)
-        min_val = np.min(c_map)
-        min_indexes = np.argwhere(c_map == min_val)
         
-        # if min_val == 0:
-        #     print('Unsolvable!')
+        # Identify the minimum C value in the heuristic map.
+        min_c = np.min(c_map)
         
-        # Solve trivial cases
-        if min_val == 1:# Solve naively if cells have only one option.
-            for x, y, i in min_indexes:
+        # Identify the indexes of all options with that minimum C value.
+        min_c_indexes = np.argwhere(c_map == min_c)
+
+        # Solve all trivial cases where C = 1, without recursion.
+        if min_c == 1:
+            for x, y, i in min_c_indexes:
                 collapse_probability_field(prob_field, x, y, i)
                 collapsed_cells[x, y] = 1
-                collapse_count += 1 # NOTE: Not tracking heuristic collapses.
+                collapse_count += 1
             continue
         
-        if len(min_indexes) > 1:
-            min_weights = np.array([w_map[x, y, i] for x, y, i in min_indexes])
-
-            x, y, i = min_indexes[np.argmin(min_weights)]
+        # If there are multiple non-trivial options with the minimum C value, select the one with the lowest W value.
+        if len(min_c_indexes) > 1:
+            min_w_vals = np.array([w_map[x, y, i] for x, y, i in min_c_indexes])
+            x, y, i = min_c_indexes[np.argmin(min_w_vals)]
+        
+        # If there is only one non-trivial cell with the minimum C value, select it.
         else:
-            x, y, i = min_indexes[0]
+            x, y, i = min_c_indexes[0]
             
-        # Recurse
+        # Collapse the selected cell and recurse.
         pf = prob_field.copy()
         collapse_probability_field(pf, x, y, i)
         cc = collapsed_cells.copy()
@@ -343,11 +351,13 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         failed_recursions += _frs   #
         collapse_count += _c + 1    #
         
+        # If the recursion found a solution, return it.
         if r is not None:
             return r, recursions, failed_recursions, collapse_count
         
-        failed_recursions += 1
+        # If the recursion failed to return a solution, remove that option from the prob_field.
         prob_field[x, y, i] = 0
+        failed_recursions += 1
         
 
 @njit
