@@ -150,4 +150,3 @@ def get_options(row, col, region):  # TODO: Faster way to do this?
     """
     taken = set(np.concatenate((row, col, region)).flatten())
     return [i for i in range(1, 10) if i not in taken]
-
