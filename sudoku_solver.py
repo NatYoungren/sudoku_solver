@@ -362,59 +362,47 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
 @njit
 def simpler_collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
-
-    # Thoughts:
-    # Collapse field:
-    #   9x9x9 array, each cell is a list of 9 values.
-    #   Each index is 0 if that value is impossible, C if it is not.
-    #   C = Minimum number of competing cells for that value in a row/column/region.
-    #   
-    #   IF: C = 1/C
-    #   C is now the probability of that value being correct.
-    #   If C = 1, that value is the only option for that cell?
-    #   If we always choose the maximum C, we will always choose the option that collapses the fewest cells.
-    #   If 
-    #   
-
-    if collapsed_cells is None: # On the first call, generate the heuristic maps.
+    if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
-    # h_map = np.full((9, 9, 9), fill_value=100, dtype=np.uint8)
         
-    # DEBUG: Track metrics.
-    recursions = 1          # Total recursions (including first call)
-    failed_recursions = 0   # TODO: Consider tracking to max depth instead.
-    collapse_count = 0
+    # NOTE: These are purely performance metrics.
+    recursions = 1          # Total recursions, including initial solver call. (min 1)
+    failed_recursions = 0   # Total recursions that failed to find a solution. (min 0)
+    collapse_count = 0      # Total number of cells collapsed.
     
     while True:
-        # Sum the probability field along the value axis.
-        #   The value of each cell is equal to the number of remaining options for that cell.
+        # Collapse all cells with only one option until no more remain, or the puzzle is unsolvable.
         state, _c = propagate_collapse(prob_field=prob_field, collapsed_cells=collapsed_cells)
         collapse_count += _c
         
+        # Return if the puzzle is solved or unsolvable.
         if state != 2:
-            # Return if the puzzle is solved or unsolvable.
             r = [None, prob_field][state]
             return r, recursions, failed_recursions, collapse_count
     
+        # Generate a 9x9x9 unified heuristic map.
+        #   H = (C * 10) + W
+        #       Default value of non-option cells is 100.
+        #   Where:
+        #       C = Minimum number of competing cells for that option in a row/column/region.
+        #       W = Maximum number of competing cells for that option in a row/column/region.
         h_map = generate_unified_heuristic_map(prob_field, collapsed_cells)
         
         # Identify index of minimum value in heuristic map.
         index = np.argmin(h_map)
-        
-        # Convert flat index into x, y, i
         x = index // 81
         y = (index % 81) // 9
         i = index % 9
         
-        if h_map[x, y, i] < 20: # If there are trivial indexes, solve them all without recursion.
+        # Solve all trivial cases where H < 20 (C = 1), without recursion.
+        if h_map[x, y, i] < 20:
             for x, y, i in np.argwhere(h_map < 20):
                 collapse_probability_field(prob_field, x, y, i)
-                
                 collapsed_cells[x, y] = 1
-                collapse_count += 1 # NOTE: Not tracking heuristic collapses.
+                collapse_count += 1
             continue
         
-        # Recurse
+        # If the option is not trivial, collapse it and recurse.
         pf = prob_field.copy()
         collapse_probability_field(pf, x, y, i)
         cc = collapsed_cells.copy()
@@ -425,10 +413,14 @@ def simpler_collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray =
         failed_recursions += _frs   #
         collapse_count += _c + 1    #
         
+        # If the recursion found a solution, return it.
         if r is not None:
             return r, recursions, failed_recursions, collapse_count
         
+        # If the recursion failed to return a solution, remove that option from the prob_field.
+        prob_field[x, y, i] = 0
         failed_recursions += 1
+
 
 @njit
 def heuristic_solve(prob_field: np.ndarray, remaining_options: np.ndarray = None):
