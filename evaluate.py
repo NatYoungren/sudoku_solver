@@ -7,8 +7,8 @@ import time
 import timeit
 import json
 
-from setup_utils import generate_probability_field, prob_field_to_puzzle, validate_solution
-from sudoku_solver import collapse_solve, masked_solve, recursive_solve, ripple_solve, simpler_collapse_solve
+from setup_utils import generate_probability_field, prob_field_to_puzzle, validate_solution, generate_puzzle
+from sudoku_solver import collapse_solve, masked_solve, recursive_solve, ripple_solve, simpler_collapse_solve, heuristic_solve
 
 np.set_printoptions(linewidth=np.inf)
 

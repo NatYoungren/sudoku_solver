@@ -3,6 +3,7 @@
 #
 
 import numpy as np
+import random
 
 # # # # # # #
 # Setup Utilities
@@ -59,6 +60,21 @@ def prob_field_to_puzzle(prob_field: np.ndarray, dtype=np.uint8):
             elif not s:
                 out_puzzle[x][y] = -1
     return out_puzzle
+
+
+def generate_puzzle(seed: int = None, difficulty=0.5, simple_and_solvable=True):
+    # TODO: Complete this function.
+    # TODO: Implement difficulty.
+    if seed is None:
+        seed = random.randint(0, np.iinfo(np.uint64).max)
+        
+    if simple_and_solvable:
+        positions = list(range(9))
+        random.seed(seed)
+        random.shuffle(positions)
+        return np.array([[(i + 1) if i == positions[j] else 0 for i in range(9)] for j in range(9)], dtype=np.uint8)
+    else:
+        pass # TODO: Implement more convoluted generator
 
 
 def validate_solution(puzzle: np.ndarray, solution: np.array):
