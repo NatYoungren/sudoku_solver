@@ -110,9 +110,8 @@ if __name__ == '__main__':
         puzzles = json.load(f)
         # puzzles.pop('ai_escargot', None)
     
-    if PREP_TIMEIT:
-        # Presolve impossible puzzle:
-        print(' > Prepping timeit')
+    if PRECOMPILE:
+        print(' > Precompiling')
         for f in TEST_FUNCS:
             print(f' >> {f.__name__}')
             timeit.timeit(lambda: f(np.zeros((9, 9, 9), dtype=np.uint8)), number=1)
