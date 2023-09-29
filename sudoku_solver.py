@@ -16,7 +16,7 @@ from heuristic_utils import generate_heuristic_maps, collapse_value, generate_un
 
 #
 # Naive Solve
-# NOTE: Not compatible with evaluate.
+#  NOTE: Not compatible with evaluate.
 def naive_solve(puzzle: np.ndarray, verbose=False):
     """ Attempts to solve a sudoku puzzle by iteratively solving cells with only one option.
             Begins again from the beginning whenever a cell is solved.
@@ -60,7 +60,10 @@ def naive_solve(puzzle: np.ndarray, verbose=False):
 
 #
 # Recursive Ripple Solver
-# TODO: Try to flatten this out and remove the while loop.
+#  Reduces the solution space by collapsing all cells with only one option.
+#  Repeats that process until no more cells can be collapsed (this is the origin of the 'ripple' name).
+#  If a choice must be made, the solver will recurse over each option.
+#   > Originally, options were chosen arbitrarily, but this was changed to sort by collapse value.
 @njit
 def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     """ Each recursion of ripple_solve will collapse every resolved cell until a choice must be made.
@@ -78,9 +81,15 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
                                                     If None, a blank array will be created.
 
     Returns:
-        np.ndarray, optional: A 9x9x9 numpy array representing a solved sudoku puzzle probability field.
-                                If no solution can be found, returns None.
+        (np.ndarray, optional), int, int, int: Solution, Recursion count, Failed recursion count, Collapse count
+            
+            > Solution: A 9x9x9 numpy array representing a solved sudoku puzzle probability field, None if no solution was found.
+                            
+            > Recursion count: Number of recursions performed (including original call).
+            > Failed recursion count: Number of recursions that failed to find a solution.
+            > Collapse count: Number of cells collapsed.
     """
+    # During the initial call, create a blank collapsed_cells array.
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
     
@@ -134,9 +143,12 @@ def ripple_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
 #
 # Recursive Solver w/ Masking
-# Attempt at using array masking to simplify cell selection.
+#  Attempt at using array masking to simplify cell selection.
+#  This solver collapses trivial cells one at a time, regenerating and remasking a resolution map repeatedly.
+#  Focuses completely on the cell with the minimum number of options, sorting choices by C value when needed.
 @njit
 def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+    # During the initial call, create a blank collapsed_cells array.
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
     
@@ -174,11 +186,11 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         return None, recursions, failed_recursions, collapse_count
     
     # If all cells have an option and there is one option per cell, the puzzle is solved.
-    if resolution_map.sum() == 81: # TODO: Should this be reorganized? Reintroduce the while True?
+    if resolution_map.sum() == 81:
         return prob_field, recursions, failed_recursions, collapse_count
     
     # The cell with the least options still has > 1 options, identify those options.
-    indexes = np.where(prob_field[x][y])[0]
+    indexes = np.where(prob_field[x][y])[0] 
     collapsed_cells[x, y] = 1
     
     # Calculate the collapse value for each option.
@@ -211,10 +223,12 @@ def masked_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
 #
 # Fully Recursive Solver
-# Essentially masked solve, but without any collapse propagation.
-# Each cell collapse triggers a recursion, this is slow and excessive but robust.
+#  Essentially masked solve but without any collapse propagation.
+#  Each cell collapse triggers a recursion, this is excessive but robust.
+#  Goal is to minimize the work performed during each recursion and focus on quickly exploring the solution space.
 @njit
 def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+    # During the initial call, create a blank collapsed_cells array.
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
         
@@ -275,26 +289,20 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
 
 
 #
-# 
+# Heuristic Map Solver
+#  Reuses the naive propagation method from ripple solve, but uses heuristic maps to select cells.
+#  > Generates 2 9x9x9 heuristic maps.
+#  >  C = Minimum number of competing cells for that option in a row/column/region.
+#  >  W = Maximum number of competing cells for that option in a row/column/region.
+#  >  Default value of non-option cells is 10.
+#  Uses these values to recurse over the options with the lowest likelihood of breaking other cells (prioritizes Lowest C -> Lowest W)
+#  Failed recursion means the option is removed from the solution space.
+#  Reduces the number of recursions compared to previous attempts, but there is more overhead during cell selection.
 @njit
-def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
-
-    # Thoughts:
-    # Collapse field:
-    #   9x9x9 array, each cell is a list of 9 values.
-    #   Each index is 0 if that value is impossible, C if it is not.
-    #   C = Minimum number of competing cells for that value in a row/column/region.
-    #   
-    #   IF: C = 1/C
-    #   C is now the probability of that value being correct.
-    #   If C = 1, that value is the only option for that cell?
-    #   If we always choose the maximum C, we will always choose the option that collapses the fewest cells.
-    #   If 
-    #   
-
+def map_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+    # During the initial call, create a blank collapsed_cells array.
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
-    
         
     # NOTE: These are purely performance metrics.
     recursions = 1          # Total recursions, including initial solver call. (min 1)
@@ -345,7 +353,7 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         collapse_probability_field(pf, x, y, i)
         cc = collapsed_cells.copy()
         cc[x, y] = 1
-        r, _rs, _frs, _c = collapse_solve(pf, cc)
+        r, _rs, _frs, _c = map_solve(pf, cc)
         
         recursions += _rs           # Update the tracked metrics.
         failed_recursions += _frs   #
@@ -359,9 +367,21 @@ def collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
         prob_field[x, y, i] = 0
         failed_recursions += 1
         
-
+#
+# Single Heuristic Map Solver
+#  Similar to map_solve, but uses a single heuristic value to select cells.
+#  > Generates 1 9x9x9 heuristic map.
+#  > H = (C * 10) + W
+#  >  C = Minimum number of competing cells for that option in a row/column/region.
+#  >  W = Maximum number of competing cells for that option in a row/column/region.
+#  >  Default value of non-option cells is 100.
+#  Uses these values to select cells with a low likelihood of breaking other cells.
+#  Combining C and W slightly simplifies the cell selection process.
+#  > Cells with only one option have (H < 20).
+#  Marginal improvement over map_solve, but juggles less numerical data.
 @njit
-def simpler_collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+def single_map_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
+    # During the initial call, create a blank collapsed_cells array.
     if collapsed_cells is None:
         collapsed_cells = np.zeros((9, 9), dtype=np.bool_)
         
@@ -407,7 +427,7 @@ def simpler_collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray =
         collapse_probability_field(pf, x, y, i)
         cc = collapsed_cells.copy()
         cc[x, y] = 1
-        r, _rs, _frs, _c = simpler_collapse_solve(pf, cc)
+        r, _rs, _frs, _c = single_map_solve(pf, cc)
         
         recursions += _rs           # Update the tracked metrics.
         failed_recursions += _frs   #
@@ -422,11 +442,21 @@ def simpler_collapse_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray =
         failed_recursions += 1
 
 
+#
+# Fully Heuristic Solver
+#  Similar to map_solve and single_map_solve, but handles collapse propagation differently.
+#  Heuristic values are overlayed on the probability field.
+#  Heuristic is calculated as follows:
+#  > H = 100 - ((C * 10) + W)
+#  >  C = Minimum number of competing cells for that option in a row/column/region.
+#  >  W = Maximum number of competing cells for that option in a row/column/region.
+#  >  Default value of non-option cells is 0.
+#  This heuristic setup makes it easy to identify cells with only one option (H > 80).
+#  It also also makes finding the next collapsible option a simple argmax operation.
 @njit
 def heuristic_solve(prob_field: np.ndarray, remaining_options: np.ndarray = None):
     # Remaining options is used to mask the probability field.
     # It is an inverted version of collapsed_cells with a value axis, making it 9x9x9.
-    # TODO: Consider swapping back to a 9x9 array.
     if remaining_options is None:
         remaining_options = np.ones((9, 9, 9), dtype=np.bool_)
         
