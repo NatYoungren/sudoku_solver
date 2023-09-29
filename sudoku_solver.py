@@ -535,33 +535,30 @@ if __name__ == '__main__':
     import time
     np.set_printoptions(linewidth=np.inf)
     
+    solvers = [heuristic_solve]
+    skipped_puzzles = []
+    
     PUZZLE_FILE = 'sudoku_puzzle.json'
     
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
     
-    # puzzle = np.array(puzzles['evil'])
     print('Precompiling...')
-    collapse_solve(np.zeros((9, 9, 9), dtype=np.uint8))
-    simpler_collapse_solve(np.zeros((9, 9, 9), dtype=np.uint8))
+    for solver in solvers:
+        solver(np.ones((9, 9, 9), dtype=np.uint8))
     
     for name, puzzle in puzzles.items():
-        if name not in ['sudokupy']:
+        if name in skipped_puzzles:
             continue
-        
         puzzle = np.array(puzzle)
-        
-        print('Puzzle:', name)
-        
-        prob_field = generate_probability_field(puzzle)
-        t1 = time.time()
-        solution, recursions, failed_recursions, collapses = collapse_solve(prob_field.copy())
-        t2 = time.time()
-        _solution, _recursions, _failed_recursions, _collapses = simpler_collapse_solve(prob_field.copy())
-        t3 = time.time()
-        print(prob_field_to_puzzle(_solution))
+        for solver in solvers:
+            print('Puzzle:', name)
+            
+            prob_field = generate_probability_field(puzzle.copy())
+            
+            t1 = time.time()
+            solution, recursions, failed_recursions, collapses = heuristic_solve(prob_field.copy())
+            t2 = time.time()
+            print('Solution:', prob_field_to_puzzle(solution))
 
-        print('Solution:', (prob_field_to_puzzle(solution) == prob_field_to_puzzle(_solution)).all())
-        print(f'collapse: {t2-t1:0.7f}', recursions, failed_recursions, collapses)
-        print(f'simple_c: {t3-t2:0.7f}', _recursions, _failed_recursions, _collapses)
-
+            print(f'{solver.__name__}: {t2-t1:0.7f}', recursions, failed_recursions, collapses)
