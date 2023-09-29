@@ -470,7 +470,7 @@ def heuristic_solve(prob_field: np.ndarray, remaining_options: np.ndarray = None
         
         # TODO: Propagate collapse to remove single-option cells. (Inside update_h_p_f?)
 
-        # Fill prob_field with heuristic values.
+        # Overwrite prob_field with heuristic values.
         #   H = 100 - ((C * 10) + W)
         #      Default value of non-option cells is 0.
         #   Where:
