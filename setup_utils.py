@@ -65,7 +65,7 @@ def prob_field_to_puzzle(prob_field: np.ndarray, dtype=np.uint8):
     return out_puzzle
 
 
-def generate_puzzle(seed: int = None, difficulty=0.5, simple_and_solvable=True):
+def generate_puzzle(seed: int = None, difficulty=0.5, simple_and_solvable=True, **kwargs):
     # TODO: Complete this function.
     # TODO: Implement difficulty.
     if seed is None:
