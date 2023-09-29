@@ -95,6 +95,50 @@ def evaluate(puzzles, solvers, iterations=10, verbose_loop: bool = True, verbose
             print(f'Average time : {sum(times.values()) / len(times):.7f}')
 
 
+def evaluate_random(puzzle_params: dict, solvers:list, iterations=10, verbose_end: bool = True):
+    """ Evaluates a set of solvers against randomly generated puzzles.
+
+    Args:
+        puzzle_params (dict): Params used to generate puzzles
+        solvers (list): List of solver functions. Must return 
+        iterations (int, optional): _description_. Defaults to 10.
+        verbose_end (bool, optional): _description_. Defaults to True.
+    """
+    # Stores: [times], unsolved count, [recursions], [failed recursions], [collapses]
+    results = [[[], 0, [], [], []] for _ in solvers]
+    
+    for _ in range(iterations):
+        # Generate puzzle.
+        puzzle = generate_puzzle(**puzzle_params)
+        prob_field = generate_probability_field(puzzle)
+        
+        # Test each solver against the same generated puzzle.
+        for i, solver in enumerate(solvers):
+            pf = prob_field.copy()
+            
+            # Time solver.
+            start_time = time.time()
+            r, _r, _fr, _c = solver(pf)
+            end_time = time.time()
+            
+            # Store results.
+            results[i][0].append(end_time - start_time)
+            results[i][1] += validate_solution(puzzle, r)[0]
+            results[i][2].append(_r)
+            results[i][3].append(_fr)
+            results[i][4].append(_c)
+    
+    # Print final results for each solver.
+    if verbose_end:
+        for i, solver in enumerate(solvers):
+            print(f'\n{solver.__name__}: {iterations} {results[i][1]} unsolved.')
+            print(f'             :     avg,   min,   max')
+            print(f' Recursions  : {np.mean(results[i][2]):7.2f}, {np.min(results[i][2]):>5}, {np.max(results[i][2]):>5}')
+            print(f' Failed Rec. : {np.mean(results[i][3]):7.2f}, {np.min(results[i][3]):>5}, {np.max(results[i][3]):>5}')
+            print(f' Collapses   : {np.mean(results[i][4]):7.2f}, {np.min(results[i][4]):>5}, {np.max(results[i][4]):>5}')
+            print(f' Time Taken  : {np.mean(results[i][0]):7.5f}, {np.min(results[i][0]):7.5f}, {np.max(results[i][0]):7.5f}')
+
+
 if __name__ == '__main__':
     PRECOMPILE = True
 
