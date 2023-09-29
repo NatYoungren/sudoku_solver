@@ -140,15 +140,31 @@ def evaluate_random(puzzle_params: dict, solvers:list, iterations=10, verbose_en
 
 
 if __name__ == '__main__':
+    # If True, attempt to precompile all njit functions before timing occurs.
     PRECOMPILE = True
 
+    # If True, generate random puzzles. If False, load puzzles from file.
+    RANDOM_PUZZLES = True
+    
+    # Used when loading puzzles from file
     PUZZLE_FILE = 'sudoku_puzzle.json'
     
+    # Used when generating random puzzles
+    PUZZLE_PARAMS = {'seed': None, 'difficulty': 0.5, 'simple_and_solvable': True}
+    
+    # If True, print results of each puzzle during evaluation.
     VERBOSE_LOOP = False
+    
+    # If True, print overall results after all puzzles are evaluated.
     VERBOSE_END = True
+    
+    # Number of iterations performed during timing.
     ITERATIONS = 1000
     
-    TEST_FUNCS = [ripple_solve, recursive_solve, masked_solve, collapse_solve, simpler_collapse_solve, heuristic_solve]
+    
+    TEST_FUNCS = [ripple_solve, recursive_solve, masked_solve, map_solve, single_map_solve, heuristic_solve]
+    # TEST_FUNCS = [ripple_solve]
+    # TEST_FUNCS = [heuristic_solve]
 
     with open(PUZZLE_FILE) as f:
         puzzles = json.load(f)
@@ -160,4 +176,7 @@ if __name__ == '__main__':
             print(f' >> {f.__name__}')
             timeit.timeit(lambda: f(np.zeros((9, 9, 9), dtype=np.uint8)), number=1)
 
-    evaluate(puzzles, TEST_FUNCS, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
+    if not RANDOM_PUZZLES:
+        evaluate(puzzles, TEST_FUNCS, iterations=ITERATIONS, verbose_loop=VERBOSE_LOOP, verbose_end=VERBOSE_END)
+    else:
+        evaluate_random(PUZZLE_PARAMS, TEST_FUNCS, iterations=ITERATIONS, verbose_end=VERBOSE_END)
