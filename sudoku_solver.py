@@ -261,8 +261,8 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     indexes = np.where(prob_field[x][y])[0]
     
     # If that cell has multiple options, sort them by collapse value.
-    if len(indexes) < 1:
-        indexes[:] = [x for _, x in sorted(zip([collapse_value(prob_field, x, y, i) for i in indexes], indexes), reverse=False)]
+    if len(indexes) > 1:
+        indexes[:] = [_i for _, _i in sorted(zip([collapse_value(prob_field, x, y, i) for i in indexes], indexes), reverse=False)]
     
     # Recurse over each option.
     for i in indexes:
