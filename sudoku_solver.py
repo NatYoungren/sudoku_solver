@@ -257,15 +257,8 @@ def recursive_solve(prob_field: np.ndarray, collapsed_cells: np.ndarray = None):
     x, y = c // 9, c % 9
     collapsed_cells[x, y] = 1
     
-    # Determine the remaining options for that cell.
-    indexes = np.where(prob_field[x][y])[0]
-    
-    # If that cell has multiple options, sort them by collapse value.
-    if len(indexes) > 1:
-        indexes[:] = [_i for _, _i in sorted(zip([collapse_value(prob_field, x, y, i) for i in indexes], indexes), reverse=False)]
-    
     # Recurse over each option.
-    for i in indexes:
+    for i in np.where(prob_field[x][y])[0]:
         
         # Pass copies of the probability field and collapsed cells when recursing.
         pf = prob_field.copy()
