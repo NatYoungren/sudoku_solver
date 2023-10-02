@@ -131,7 +131,7 @@ def evaluate_random(puzzle_params: dict, solvers:list, iterations=10, verbose_en
     # Print final results for each solver.
     if verbose_end:
         for i, solver in enumerate(solvers):
-            print(f'\n{solver.__name__}: {iterations} {results[i][1]} unsolved.')
+            print(f'\n{solver.__name__}: {iterations} iterations, {results[i][1]} unsolved.')
             print(f'             :     avg,   min,   max')
             print(f' Recursions  : {np.mean(results[i][2]):7.2f}, {np.min(results[i][2]):>5}, {np.max(results[i][2]):>5}')
             print(f' Failed Rec. : {np.mean(results[i][3]):7.2f}, {np.min(results[i][3]):>5}, {np.max(results[i][3]):>5}')
